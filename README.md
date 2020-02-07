@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/jerpint/voicemd.png?branch=master)](https://travis-ci.org/jerpint/voicemd)
+[![Build Status](https://travis-ci.com/jerpint/voicemd.png?branch=master)](https://travis-ci.com/jerpint/voicemd)
 
 
 # voicemd

@@ -5,7 +5,7 @@ import zipfile
 import pandas as pd
 
 
-def load_xlsx(fname, voice_clips_dir):
+def clean_xlsx(fname, voice_clips_dir):
 
     # open file
     df = pd.read_excel(fname)
@@ -87,4 +87,6 @@ if __name__ == "__main__":
         except FileNotFoundError:
             "Download the .zip containing the voice clips"
 
-    df = load_xlsx(fname, voice_clips_dir)
+        df = clean_xlsx(fname, voice_clips_dir)
+        df.to_csv(voice_clips_dir + 'cleaned_metadata.csv')
+

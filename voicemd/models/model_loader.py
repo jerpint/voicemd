@@ -3,6 +3,7 @@ import torch
 from torch import optim
 
 from voicemd.models.my_model import MyModel
+from voicemd.models.densenet import densenet121
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +13,10 @@ def load_model(hyper_params):
     # __TODO__ fix architecture list
     if architecture == 'my_model':
         model_class = MyModel
+
+    elif architecture == 'densenet121':
+        model_class = densenet121
+
     else:
         raise ValueError('architecture {} not supported'.format(architecture))
     logger.info('selected architecture: {}'.format(architecture))
@@ -39,4 +44,4 @@ def load_optimizer(hyper_params, model):
 
 
 def load_loss(hyper_params):
-    return torch.nn.L1Loss(reduction='sum')
+    return torch.nn.BCEWithLogitsLoss()

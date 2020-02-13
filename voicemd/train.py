@@ -121,7 +121,8 @@ def train_impl(dev_loader, loss_fun, max_epoch, model, optimizer, output, patien
             # forward + backward + optimize
             optimizer.zero_grad()
             outputs = model(model_input.to(device))
-            model_target = torch.squeeze(model_target.to(device))
+            model_target = model_target.unsqueeze(-1)
+            model_target = model_target.to(device)
             loss = loss_fun(outputs, model_target)
             loss.backward()
             optimizer.step()
@@ -141,7 +142,8 @@ def train_impl(dev_loader, loss_fun, max_epoch, model, optimizer, output, patien
             model_input, model_target = data
             with torch.no_grad():
                 outputs = model(model_input.to(device))
-                model_target = torch.squeeze(model_target.to(device))
+                model_target = model_target.unsqueeze(-1)
+                model_target = model_target.to(device)
                 loss = loss_fun(outputs, model_target)
                 dev_cumulative_loss += loss.item()
             examples += model_target.shape[0]

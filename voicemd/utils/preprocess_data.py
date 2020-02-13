@@ -5,7 +5,7 @@ import zipfile
 import pandas as pd
 
 
-def clean_xlsx(fname, voice_clips_dir):
+def load_xlsx(fname, voice_clips_dir):
 
     # open file
     df = pd.read_excel(fname)
@@ -36,9 +36,7 @@ def clean_filenames(dpath):
 
     reg = r"[\ \_ \.]*E_*NSS"
     cleaned_filenames = [
-        re.sub(reg, "", file, re.I)
-        for file in tmp_fnames
-        if re.search(reg, file, re.I)
+        re.sub(reg, "", file, re.I) for file in tmp_fnames if re.search(reg, file, re.I)
     ]
     cleaned_filenames = [
         re.sub(r"WAV", r"wav", file, re.I) for file in cleaned_filenames
@@ -89,4 +87,4 @@ if __name__ == "__main__":
         except FileNotFoundError:
             "Download the .zip containing the voice clips"
 
-    df = clean_xlsx(fname, voice_clips_dir)
+    df = load_xlsx(fname, voice_clips_dir)

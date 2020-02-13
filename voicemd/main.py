@@ -47,9 +47,9 @@ def main():
         root.setLevel(logging.INFO)
         root.addHandler(handler)
 
-    # to intercept any print statement:
-    sys.stdout = LoggerWriter(logger.info)
-    sys.stderr = LoggerWriter(logger.warning)
+        # to intercept any print statement:
+        sys.stdout = LoggerWriter(logger.info)
+        sys.stderr = LoggerWriter(logger.warning)
 
     if args.config is not None:
         with open(args.config, 'r') as stream:
@@ -60,7 +60,7 @@ def main():
     # to be done as soon as possible otherwise mlflow will not log with the proper exp. name
     if 'exp_name' in hyper_params:
         mlflow.set_experiment(hyper_params['exp_name'])
-    if os.path.exists(os.path.join(args.output, STAT_FILE_NAME)):
+    if os.path.exists(os.path.join(args.output, STAT_FILE_NAME)) and not args.start_from_scratch:
         _, _, _, mlflow_run_id = load_stats(args.output)
         mlflow.start_run(run_id=mlflow_run_id)
     else:

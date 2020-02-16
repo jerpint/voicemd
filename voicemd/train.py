@@ -7,6 +7,9 @@ import yaml
 import time
 import torch
 import tqdm
+import numpy as np
+
+from sklearn.metrics import confusion_matrix
 from mlflow import log_metric
 from orion.client import report_results
 from yaml import dump
@@ -108,11 +111,21 @@ def train_impl(dev_loader, loss_fun, max_epoch, model, optimizer, output, patien
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     model.to(device)
 
+    def get_performance_metrics(outputs, model_target):
+        preds = (torch.sigmoid(outputs).detach().numpy() > 0.5)
+        targs = model_target.detach().numpy()
+        acc = np.sum(np.equal(preds, targs)) / len(preds)
+        conf_mat = confusion_matrix(targs, preds)
+        return acc, conf_mat
+
+
     for epoch in range(start_epoch, max_epoch):
 
         start = time.time()
         # train
         train_cumulative_loss = 0.0
+        train_cumulative_acc = 0.0
+        train_cumulative_conf_mat = np.zeros((2, 2))
         examples = 0
         model.train()
         train_steps = len(train_loader)
@@ -127,16 +140,24 @@ def train_impl(dev_loader, loss_fun, max_epoch, model, optimizer, output, patien
             loss.backward()
             optimizer.step()
 
+            acc, conf_mat = get_performance_metrics(outputs, model_target)
+
             train_cumulative_loss += loss.item()
+            train_cumulative_acc += acc
+            train_cumulative_conf_mat += conf_mat
             examples += model_target.shape[0]
 
         train_end = time.time()
         avg_train_loss = train_cumulative_loss / examples
+        avg_train_acc = train_cumulative_acc / train_steps
+        print(train_cumulative_conf_mat)
 
         # dev
         model.eval()
         dev_steps = len(dev_loader)
         dev_cumulative_loss = 0.0
+        dev_cumulative_acc = 0.0
+        dev_cumulative_conf_mat = np.zeros((2, 2))
         examples = 0
         for i, data in pb(enumerate(dev_loader, 0), total=dev_steps):
             model_input, model_target = data
@@ -146,27 +167,41 @@ def train_impl(dev_loader, loss_fun, max_epoch, model, optimizer, output, patien
                 model_target = model_target.to(device)
                 loss = loss_fun(outputs, model_target)
                 dev_cumulative_loss += loss.item()
+
+                acc, conf_mat = get_performance_metrics(outputs, model_target)
+                dev_cumulative_acc += acc
+                dev_cumulative_conf_mat += conf_mat
             examples += model_target.shape[0]
 
+        print(dev_cumulative_conf_mat)
         avg_dev_loss = dev_cumulative_loss / examples
-        log_metric("dev_loss", avg_dev_loss, step=epoch)
+        avg_dev_acc = dev_cumulative_acc / dev_steps
         log_metric("train_loss", avg_train_loss, step=epoch)
+        log_metric("train_acc", avg_train_acc, step=epoch)
+        log_metric("dev_loss", avg_dev_loss, step=epoch)
+        log_metric("dev_acc", avg_dev_acc, step=epoch)
 
         dev_end = time.time()
         torch.save(model.state_dict(), os.path.join(output, LAST_MODEL_NAME))
 
-        if best_dev_metric is None or avg_dev_loss < best_dev_metric:
-            best_dev_metric = avg_dev_loss
+        if best_dev_metric is None or avg_dev_acc < best_dev_metric:
+            best_dev_metric = avg_dev_acc
             remaining_patience = patience
             torch.save(model.state_dict(), os.path.join(output, BEST_MODEL_NAME))
         else:
             remaining_patience -= 1
 
         logger.info(
-            'done #epoch {:3} => loss {:5.3f} - dev loss {:3.2f} (will try for {} more epoch) - '
+            'done #epoch {:3} => loss {:5.3f}, acc {:5.3f}- dev loss {:3.4f} dev-acc {:5.3f}, (will try for {} more epoch) - '
             'train min. {:4.2f} / dev min. {:4.2f}'.format(
-                epoch, avg_train_loss, avg_dev_loss, remaining_patience, (train_end - start) / 60,
-                (dev_end - train_end) / 60))
+                epoch, avg_train_loss,
+                avg_train_acc,
+                avg_dev_loss,
+                avg_dev_acc,
+                remaining_patience,
+                (train_end - start) / 60,
+                (dev_end - train_end) / 60)
+        )
 
         write_stats(output, best_dev_metric, epoch + 1, remaining_patience)
         log_metric("best_dev_metric", best_dev_metric)

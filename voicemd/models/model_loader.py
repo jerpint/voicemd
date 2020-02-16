@@ -33,11 +33,12 @@ def load_model(hyper_params):
 
 def load_optimizer(hyper_params, model):
     optimizer_name = hyper_params['optimizer']
+    lr = hyper_params['learning_rate']
     # __TODO__ fix optimizer list
     if optimizer_name == 'adam':
         optimizer = optim.Adam(model.parameters())
     elif optimizer_name == 'sgd':
-        optimizer = optim.SGD(model.parameters())
+        optimizer = optim.SGD(model.parameters(), lr=lr)
     else:
         raise ValueError('optimizer {} not supported'.format(optimizer_name))
     return optimizer

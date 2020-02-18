@@ -184,7 +184,7 @@ def train_impl(dev_loader, loss_fun, max_epoch, model, optimizer, output, patien
         dev_end = time.time()
         torch.save(model.state_dict(), os.path.join(output, LAST_MODEL_NAME))
 
-        if best_dev_metric is None or avg_dev_acc < best_dev_metric:
+        if best_dev_metric is None or avg_dev_acc > best_dev_metric:
             best_dev_metric = avg_dev_acc
             remaining_patience = patience
             torch.save(model.state_dict(), os.path.join(output, BEST_MODEL_NAME))

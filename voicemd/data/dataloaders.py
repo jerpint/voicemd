@@ -4,12 +4,13 @@ import numpy as np
 import pandas as pd
 import torch
 import torchaudio
+import torchvision
 
 
 class AudioDataset(torch.utils.data.Dataset):
     """Voice recordings dataset."""
 
-    def __init__(self, metadata, voice_clips_dir, in_channels=1, window_len=128, transform=None):
+    def __init__(self, metadata, voice_clips_dir, in_channels=1, window_len=128, normalize=False, dev=False, dev_step_size=64, transform=None):
         """
         Args:
             csv_file (string): Path to the csv file with annotations.
@@ -22,32 +23,40 @@ class AudioDataset(torch.utils.data.Dataset):
         self.transform = transform
         self.in_channels = in_channels
         self.window_len = window_len
+        self.dev = False # if in dev, the entire spectrum is processed
+        self.dev_step_size = dev_step_size
+        self.normalize = normalize
         self.spectrograms = []
 
         self._preprocess()
 
     def __len__(self):
-        return len(self.metadata)
+
+        if self.dev:
+            pass
+
+        else:
+            return len(self.metadata)
 
     def __getitem__(self, idx):
+
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
-        # This would work if we want to do on the fly preprocessing. Currently we are doing it in preprocessing and caching it in the ram as the dataset isnt too big
-        #  fname = self.metadata['filename'][idx]
-        #  spec, w, sr = self._load_spectrogram(fname)
+        if self.dev:
+            pass
 
+        else:
 
+            # Sample a spectrum at random from the entire spectrum
+            # This would work if we want to do on the fly preprocessing. Currently we are doing it in preprocessing and caching it in the ram as the dataset isnt too big
+            start_idx = np.random.randint(self.window_len, self.specs[idx].shape[2]-self.window_len)
+            spec = self.specs[idx][..., start_idx:start_idx+self.window_len]
+            if self.in_channels != 1:
+                spec = spec.expand(self.in_channels, spec.shape[1], spec.shape[2])
 
-        start_idx = np.random.randint(self.window_len, self.specs[idx].shape[2]-self.window_len)
+            label = float(self.labels[idx]['gender'] == 'M')
 
-        spec = self.specs[idx][..., start_idx:start_idx+self.window_len]
-        if spec.shape[0] != 1:
-            from IPython import embed; embed();
-        if self.in_channels != 1:
-            spec = spec.expand(self.in_channels, spec.shape[1], spec.shape[2])
-
-        label = float(self.labels[idx]['gender'] == 'M')
 
         return spec, label
 
@@ -58,6 +67,14 @@ class AudioDataset(torch.utils.data.Dataset):
         if waveform.shape[0] == 2:  # Assume Mono
             waveform = torch.unsqueeze(waveform[0, ...], dim=0)
         specgram = torchaudio.transforms.MFCC(sample_rate=sr, n_mfcc=40)(waveform)
+
+        if self.normalize:
+            torchvision.transforms.functional.normalize(specgram, [torch.mean(specgram)], [torch.std(specgram)])
+            specgram = torchvision.transforms.functional.normalize(specgram, [torch.mean(specgram)], [torch.std(specgram)])
+
+            # Other kind of normalization to test out
+            #  eps = 1e-8
+            #  specgram = (specgram - specgram.min()) / (specgram.max() - specgram.min() + eps)
 
         return specgram, waveform, sr
 
@@ -75,7 +92,6 @@ class AudioDataset(torch.utils.data.Dataset):
 if __name__ == "__main__":
 
     from voicemd.utils.utils import load_yaml_config
-    import torchvision.models as models
 
     root_dir = "/home/jerpint/voicemd/"
     dpath = root_dir + "data/"
@@ -85,7 +101,3 @@ if __name__ == "__main__":
     metadata = pd.read_csv(fname)
     metadata = metadata[metadata["filename"].notna()]
     audio_dataloader = AudioDataset(metadata, voice_clips_dir)
-
-    densenet = models.densenet121(pretrained=False)
-    #  densenet._modules.pop('classifier')
-    densenet = torch.nn.Sequential(densenet, torch.nn.Linear(in_features=1000, out_features=2))

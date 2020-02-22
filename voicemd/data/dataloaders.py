@@ -1,16 +1,26 @@
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
 import torchaudio
 import torchvision
+import librosa
 
 
 class AudioDataset(torch.utils.data.Dataset):
     """Voice recordings dataset."""
 
-    def __init__(self, metadata, voice_clips_dir, in_channels=1, window_len=128, normalize=False, dev=False, dev_step_size=64, transform=None):
+    def __init__(self, metadata,
+                 voice_clips_dir,
+                 spec_type,
+                 in_channels=1,
+                 window_len=128,
+                 normalize=False,
+                 dev=False,
+                 dev_step_size=64,
+                 transform=None):
         """
         Args:
             csv_file (string): Path to the csv file with annotations.
@@ -20,6 +30,7 @@ class AudioDataset(torch.utils.data.Dataset):
         """
         self.metadata = metadata
         self.voice_clips_dir = voice_clips_dir
+        self.spec_type = spec_type
         self.transform = transform
         self.in_channels = in_channels
         self.window_len = window_len
@@ -28,7 +39,11 @@ class AudioDataset(torch.utils.data.Dataset):
         self.normalize = normalize
         self.spectrograms = []
 
+        print("Preprocessing spectrograms...")
         self._preprocess()
+        # This will not work if we want to do on the fly preprocessing.
+        # Currently we are doing it in preprocessing and caching it in the ram
+        # as the dataset isnt too big
 
     def __len__(self):
 
@@ -48,33 +63,55 @@ class AudioDataset(torch.utils.data.Dataset):
 
         else:
 
+
+            # Pick a random valid index to sample at
             # Sample a spectrum at random from the entire spectrum
-            # This would work if we want to do on the fly preprocessing. Currently we are doing it in preprocessing and caching it in the ram as the dataset isnt too big
-            start_idx = np.random.randint(self.window_len, self.specs[idx].shape[2]-self.window_len)
+            start_idx = np.random.randint(0, self.specs[idx].shape[2]-self.window_len)
             spec = self.specs[idx][..., start_idx:start_idx+self.window_len]
             if self.in_channels != 1:
                 spec = spec.expand(self.in_channels, spec.shape[1], spec.shape[2])
 
             label = float(self.labels[idx]['gender'] == 'M')
 
-
         return spec, label
 
     def _load_spectrogram(self, fname):
         full_path = Path(self.voice_clips_dir, fname)
+
         waveform, sr = torchaudio.load(full_path)  # load tensor from file
-        #  specgram = torchaudio.transforms.Spectrogram()(waveform)
         if waveform.shape[0] == 2:  # Assume Mono
             waveform = torch.unsqueeze(waveform[0, ...], dim=0)
-        specgram = torchaudio.transforms.MFCC(sample_rate=sr, n_mfcc=40)(waveform)
+
+        #  waveform, sr = librosa.load(full_path)
+
+        if self.spec_type == 'librosa_melspec':
+            specgram = librosa.feature.melspectrogram(torch.squeeze(waveform).detach().numpy(), sr=sr, hop_length=512)
+            specgram = librosa.power_to_db(specgram, ref=np.max)
+            specgram = torch.tensor(specgram).unsqueeze(dim=0)
+
+        elif self.spec_type == 'pytorch_spec':
+            specgram = torchaudio.transforms.Spectrogram(n_fft=400, normalized=True)(waveform)
+
+        elif self.spec_type == 'pytorch_melspec':
+            specgram = torchaudio.transforms.MelSpectrogram(sample_rate=sr, n_mels=40)(waveform)
+
+        elif self.spec_type == 'pytorch_mfcc':
+            specgram = torchaudio.transforms.MFCC(sample_rate=sr, n_mfcc=40, log_mels=False, melkwargs={'n_fft': 800})(waveform)
+
+        else:
+            raise ValueError("spec_type not defined")
+
 
         if self.normalize:
-            torchvision.transforms.functional.normalize(specgram, [torch.mean(specgram)], [torch.std(specgram)])
-            specgram = torchvision.transforms.functional.normalize(specgram, [torch.mean(specgram)], [torch.std(specgram)])
+            eps = 1e-8
+            specgram = (specgram - specgram.min()) / (specgram.max() - specgram.min() + eps)
 
             # Other kind of normalization to test out
-            #  eps = 1e-8
-            #  specgram = (specgram - specgram.min()) / (specgram.max() - specgram.min() + eps)
+            #  specgram = (specgram - specgram.min(dim=1)[0]) / (specgram.max(dim=1)[0] - specgram.min(dim=1)[0] + eps)
+            #  specgram -= (torch.mean(specgram, dim=1) + 1e-8)
+            #  specgram -= torch.min(specgram, dim=1)[0]
+            specgram = specgram
+
 
         return specgram, waveform, sr
 
@@ -87,6 +124,14 @@ class AudioDataset(torch.utils.data.Dataset):
         self.labels = [row[1] for row in self.metadata.iterrows()]
 
         pass
+
+    def show_sample(self, sample):
+
+        fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(20, 4))
+        cax = ax.matshow(torch.squeeze(sample[0]), interpolation='nearest', aspect='auto', cmap=plt.cm.afmhot, origin='lower')
+        fig.colorbar(cax)
+        plt.title('Spectrogram')
+        plt.show()
 
 
 if __name__ == "__main__":

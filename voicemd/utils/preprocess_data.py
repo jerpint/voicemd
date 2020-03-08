@@ -89,4 +89,3 @@ if __name__ == "__main__":
 
         df = clean_xlsx(fname, voice_clips_dir)
         df.to_csv(voice_clips_dir + 'cleaned_metadata.csv')
-

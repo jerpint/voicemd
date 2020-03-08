@@ -18,6 +18,7 @@ class AudioDataset(torch.utils.data.Dataset):
                  in_channels=1,
                  window_len=128,
                  normalize=False,
+                 preprocess=False,
                  dev=False,
                  dev_step_size=64,
                  transform=None):
@@ -37,13 +38,17 @@ class AudioDataset(torch.utils.data.Dataset):
         self.dev = False # if in dev, the entire spectrum is processed
         self.dev_step_size = dev_step_size
         self.normalize = normalize
-        self.spectrograms = []
+        self.preprocess = preprocess
 
-        print("Preprocessing spectrograms...")
-        self._preprocess()
-        # This will not work if we want to do on the fly preprocessing.
-        # Currently we are doing it in preprocessing and caching it in the ram
-        # as the dataset isnt too big
+
+
+
+        # If preprocess it will preprocess and cache each spec
+        # This will speed up computation but wont scale if the dataset
+        # gets larger
+        if self.preprocess:
+            print("Preprocessing spectrograms...")
+            self._preprocess_dataset()
 
     def __len__(self):
 
@@ -55,37 +60,60 @@ class AudioDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
 
-        if torch.is_tensor(idx):
-            idx = idx.tolist()
-
         if self.dev:
             pass
 
         else:
 
+            uid = self.metadata.index[idx]
 
             # Pick a random valid index to sample at
             # Sample a spectrum at random from the entire spectrum
-            start_idx = np.random.randint(0, self.specs[idx].shape[2]-self.window_len)
-            spec = self.specs[idx][..., start_idx:start_idx+self.window_len]
+            start_idx = np.random.randint(0, self.specs[uid].shape[2]-self.window_len)
+            spec = self.specs[uid][..., start_idx:start_idx+self.window_len]
+
+            # Expand on dims if necessary (for a model architecture expecting e.g. rbg)
             if self.in_channels != 1:
                 spec = spec.expand(self.in_channels, spec.shape[1], spec.shape[2])
 
-            label = float(self.labels[idx]['gender'] == 'M')
+            label = float(self.labels[uid]['gender'] == 'M')
+
+        if self.normalize:
+
+            # Hack to get values between -1 and 1
+            # since dbs range from -80 to 0
+            spec = (spec + 40)
+
+            # Other kind of normalization to test out
+            # eps = 1e-8
+            #  specgram = (specgram - specgram.min()) / (specgram.max() - specgram.min() + eps)
+            #  specgram = (specgram - specgram.min(dim=1)[0]) / (specgram.max(dim=1)[0] - specgram.min(dim=1)[0] + eps)
+            #  specgram -= (torch.mean(specgram, dim=1) + 1e-8)
+            #  specgram -= torch.min(specgram, dim=1)[0]
 
         return spec, label
 
-    def _load_spectrogram(self, fname):
-        full_path = Path(self.voice_clips_dir, fname)
+    def _load_waveform(self, fname):
+        # load using torchaudio, its much faster than librosa
+        waveform, sr = torchaudio.load(fname)
+        waveform = torch.squeeze(waveform).detach().numpy()
 
-        waveform, sr = torchaudio.load(full_path)  # load tensor from file
-        if waveform.shape[0] == 2:  # Assume Mono
-            waveform = torch.unsqueeze(waveform[0, ...], dim=0)
+        # if it's stereo, convert it to mono
+        if waveform.shape[0] == 2:
+            waveform = librosa.to_mono(waveform)
 
-        #  waveform, sr = librosa.load(full_path)
+        # loop the sound to make the segment long enough
+        min_seconds = 5
+        if len(waveform) / sr < min_seconds:
+            waveform = np.concatenate((waveform, waveform))
+
+        return waveform, sr
+
+
+    def _compute_specgram(self, waveform, sr):
 
         if self.spec_type == 'librosa_melspec':
-            specgram = librosa.feature.melspectrogram(torch.squeeze(waveform).detach().numpy(), sr=sr, hop_length=512)
+            specgram = librosa.feature.melspectrogram(waveform, sr=sr, hop_length=512, win_length=512, fmax=8000, n_mels=80)
             specgram = librosa.power_to_db(specgram, ref=np.max)
             specgram = torch.tensor(specgram).unsqueeze(dim=0)
 
@@ -101,29 +129,25 @@ class AudioDataset(torch.utils.data.Dataset):
         else:
             raise ValueError("spec_type not defined")
 
-
-        if self.normalize:
-            eps = 1e-8
-            specgram = (specgram - specgram.min()) / (specgram.max() - specgram.min() + eps)
-
-            # Other kind of normalization to test out
-            #  specgram = (specgram - specgram.min(dim=1)[0]) / (specgram.max(dim=1)[0] - specgram.min(dim=1)[0] + eps)
-            #  specgram -= (torch.mean(specgram, dim=1) + 1e-8)
-            #  specgram -= torch.min(specgram, dim=1)[0]
-            specgram = specgram
+        return specgram
 
 
-        return specgram, waveform, sr
+    def _specgram_from_uid(self, uid):
 
-    def _preprocess(self):
+        fname = self.metadata.loc[uid]['filename']
+        full_path = Path(self.voice_clips_dir, fname)
+        waveform, sr = self._load_waveform(full_path)
+        specgram = self._compute_specgram(waveform, sr)
 
-        self.specs = [
-            self._load_spectrogram(ii[1])[0]
-            for ii in self.metadata["filename"].iteritems()
-        ]
-        self.labels = [row[1] for row in self.metadata.iterrows()]
+        return specgram
 
-        pass
+
+    def _preprocess_dataset(self):
+        self.specs = {
+            uid: self._specgram_from_uid(uid) for uid in self.metadata.index
+        }
+
+        self.labels = {uid: self.metadata.loc[uid] for uid in self.metadata.index}
 
     def show_sample(self, sample):
 

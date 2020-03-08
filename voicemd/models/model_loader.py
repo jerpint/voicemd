@@ -3,7 +3,8 @@ import torch
 from torch import optim
 
 from voicemd.models.my_model import MyModel
-from voicemd.models.densenet import densenet121
+from voicemd.models.densenet import densenet121, densenet_small
+from voicemd.models.simple_cnn import SimpleCNN
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +17,12 @@ def load_model(hyper_params):
 
     elif architecture == 'densenet121':
         model_class = densenet121
+
+    elif architecture == 'densenet_small':
+        model_class = densenet_small
+
+    elif architecture == 'simplecnn':
+        model_class = SimpleCNN
 
     else:
         raise ValueError('architecture {} not supported'.format(architecture))
@@ -45,4 +52,4 @@ def load_optimizer(hyper_params, model):
 
 
 def load_loss(hyper_params):
-    return torch.nn.BCEWithLogitsLoss()
+    return torch.nn.CrossEntropyLoss()

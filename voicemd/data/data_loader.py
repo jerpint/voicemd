@@ -12,16 +12,21 @@ def load_data(args, hyper_params):
     # __TODO__ load the data
     # TODO: Add splits for validation
     fname = args.data + "cleaned_metadata.csv"
+
     metadata = pd.read_csv(fname)
+    metadata = metadata.drop(columns=['Unnamed: 0'])
+    metadata = metadata.set_index('uid')
     metadata = metadata[metadata["filename"].notna()]
+
     normalize = hyper_params['normalize_spectrums']
+    even_split = True
 
     random_state = 43
-    if hyper_params['debug']:
-        train_metadata = valid_metadata = metadata.iloc[0:10]
 
-    else:
-        # Split male and female, shuffle them, join them back and sample
+    if even_split:
+        # Split male and female, shuffle them,
+        # join them back and sample evenly from both
+        # Splitting evenly should only be for debugging
         male_metadata = metadata[metadata['gender'] == 'M']
         female_metadata = metadata[metadata['gender'] == 'F']
 
@@ -34,12 +39,23 @@ def load_data(args, hyper_params):
         valid_metadata = male_metadata_shuffle[75:100].append(female_metadata_shuffle[75:100])
         valid_metadata = valid_metadata.sample(n=len(valid_metadata), random_state=random_state)
 
+    else:
+        shuffled_metadata = metadata.sample(n=len(metadata), random_state=random_state)
+        train_metadata = shuffled_metadata[0:150]
+        valid_metadata = shuffled_metadata[150:200]
+        #  test_metadata = shuffled_metadata[:200]
+
+    if hyper_params['debug']:
+        train_metadata = train_metadata[0:32]
+        valid_metadata = valid_metadata.iloc[0:32]
+
     train_data = AudioDataset(
         train_metadata,
         voice_clips_dir=args.data,
         spec_type=hyper_params['spec_type'],
         window_len=hyper_params['window_len'],
         in_channels=hyper_params['in_channels'],
+        preprocess=True,
         normalize=normalize,
 
     )
@@ -50,6 +66,7 @@ def load_data(args, hyper_params):
         spec_type=hyper_params['spec_type'],
         window_len=hyper_params['window_len'],
         in_channels=hyper_params['in_channels'],
+        preprocess=True,
         normalize=normalize,
     )
 

@@ -1,0 +1,19 @@
+# general
+batch_size: 32
+optimizer: sgd
+patience: 500
+architecture: simplecnn
+in_channels: 1
+max_epoch: 3000
+exp_name: densenet_small_winlen_256
+pretrained: true
+normalize_spectrums: true 
+learning_rate: 0.01
+window_len: 256
+debug: false
+spec_type: librosa_melspec
+
+
+
+# architecture
+size: 10

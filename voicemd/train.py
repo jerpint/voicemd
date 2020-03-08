@@ -112,7 +112,8 @@ def train_impl(dev_loader, loss_fun, max_epoch, model, optimizer, output, patien
     model.to(device)
 
     def get_performance_metrics(outputs, model_target):
-        preds = (torch.sigmoid(outputs).detach().numpy() > 0.5)
+        probs = torch.softmax(outputs, 1).detach().numpy() > 0.5
+        preds = np.argmax(probs, 1)
         targs = model_target.detach().numpy()
         acc = np.sum(np.equal(preds, targs)) / len(preds)
         conf_mat = confusion_matrix(targs, preds)
@@ -134,7 +135,7 @@ def train_impl(dev_loader, loss_fun, max_epoch, model, optimizer, output, patien
             # forward + backward + optimize
             optimizer.zero_grad()
             outputs = model(model_input.to(device))
-            model_target = model_target.unsqueeze(-1)
+            model_target = model_target.type(torch.long)
             model_target = model_target.to(device)
             loss = loss_fun(outputs, model_target)
             loss.backward()
@@ -163,7 +164,7 @@ def train_impl(dev_loader, loss_fun, max_epoch, model, optimizer, output, patien
             model_input, model_target = data
             with torch.no_grad():
                 outputs = model(model_input.to(device))
-                model_target = model_target.unsqueeze(-1)
+                model_target = model_target.type(torch.long)
                 model_target = model_target.to(device)
                 loss = loss_fun(outputs, model_target)
                 dev_cumulative_loss += loss.item()

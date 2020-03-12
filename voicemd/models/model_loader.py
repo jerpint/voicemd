@@ -43,7 +43,7 @@ def load_optimizer(hyper_params, model):
     lr = hyper_params['learning_rate']
     # __TODO__ fix optimizer list
     if optimizer_name == 'adam':
-        optimizer = optim.Adam(model.parameters())
+        optimizer = optim.Adam(model.parameters(), lr=lr)
     elif optimizer_name == 'sgd':
         optimizer = optim.SGD(model.parameters(), lr=lr)
     else:
@@ -51,5 +51,18 @@ def load_optimizer(hyper_params, model):
     return optimizer
 
 
-def load_loss(hyper_params):
-    return torch.nn.CrossEntropyLoss()
+def load_loss(hyper_params, train_loader=None):
+
+    # Use the proportion from train_loader to weigh the loss since it can be unbalanced classes
+    if train_loader:
+        n_male = sum(train_loader.dataset.metadata['gender'] == 'M')
+        n_female = sum(train_loader.dataset.metadata['gender'] == 'F')
+        n_total = n_male + n_female
+
+        # Male is label 1, female is label 0, use the proportion of the other to weigh the loss
+        weight = torch.tensor([n_male/n_total, n_female/n_total])
+
+    else:
+        weight = None
+
+    return torch.nn.CrossEntropyLoss(weight=weight)

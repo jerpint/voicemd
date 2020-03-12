@@ -8,49 +8,65 @@ from voicemd.data.dataloaders import AudioDataset
 # __TODO__ change the dataloader to suit your needs...
 
 
-def load_data(args, hyper_params):
-    # TODO: Add splits for validation
+def load_metadata(args, hyper_params):
     fname = args.data + "cleaned_metadata.csv"
-
     metadata = pd.read_csv(fname)
     metadata = metadata.drop(columns=['Unnamed: 0'])
     metadata = metadata.set_index('uid')
     metadata = metadata[metadata["filename"].notna()]
+    return metadata
 
-    normalize = hyper_params['normalize_spectrums']
-    even_split = True
 
-    random_state = 43
+def get_metadata_splits(args, hyper_params):
 
-    if even_split:
+    metadata = load_metadata(args, hyper_params)
+
+    if hyper_params['split_type'] == 'even_split':
         # Split male and female, shuffle them,
         # join them back and sample evenly from both
         # Splitting evenly should only be for debugging
         male_metadata = metadata[metadata['gender'] == 'M']
         female_metadata = metadata[metadata['gender'] == 'F']
 
-        male_metadata_shuffle = male_metadata.sample(n=len(male_metadata), random_state=random_state)
-        female_metadata_shuffle = female_metadata.sample(n=len(female_metadata), random_state=random_state)
+        male_metadata_shuffle = male_metadata.sample(n=len(male_metadata), random_state=hyper_params['split_rand_state'])
+        female_metadata_shuffle = female_metadata.sample(n=len(female_metadata), random_state=hyper_params['split_rand_state'])
 
         train_metadata = male_metadata_shuffle[0:75].append(female_metadata_shuffle[0:75])
-        train_metadata = train_metadata.sample(n=len(train_metadata), random_state=random_state)
+        train_metadata = train_metadata.sample(n=len(train_metadata), random_state=hyper_params['split_rand_state'])
 
         valid_metadata = male_metadata_shuffle[75:100].append(female_metadata_shuffle[75:100])
-        valid_metadata = valid_metadata.sample(n=len(valid_metadata), random_state=random_state)
+        valid_metadata = valid_metadata.sample(n=len(valid_metadata), random_state=hyper_params['split_rand_state'])
 
         test_metadata = male_metadata_shuffle[100:].append(female_metadata_shuffle[100:])
-        test_metadata = test_metadata.sample(n=len(test_metadata), random_state=random_state)
+        test_metadata = test_metadata.sample(n=len(test_metadata), random_state=hyper_params['split_rand_state'])
+
+    elif hyper_params['split_type'] == 'rand_shuffle':
+        shuffled_metadata = metadata.sample(n=len(metadata), random_state=hyper_params['split_rand_state'])
+
+        train_percentage = 0.8
+        val_percentage = 0.1
+        # test_percentage = 0.1
+
+        train_metadata = shuffled_metadata[0:round(len(shuffled_metadata) * train_percentage)]
+        valid_metadata = shuffled_metadata[round(len(shuffled_metadata) * train_percentage):round(len(shuffled_metadata)*(train_percentage + val_percentage))]
+        test_metadata = shuffled_metadata[round(len(shuffled_metadata) * (train_percentage + val_percentage)):]
+
+    elif hyper_params['split_type'] == 'debug':
+        shuffled_metadata = metadata.sample(n=len(metadata), random_state=hyper_params['split_rand_state'])
+        train_metadata = shuffled_metadata.iloc[0:32]
+        valid_metadata = shuffled_metadata.iloc[0:32]
+        test_metadata = shuffled_metadata.iloc[0:32]
 
     else:
-        shuffled_metadata = metadata.sample(n=len(metadata), random_state=random_state)
-        train_metadata = shuffled_metadata[0:150]
-        valid_metadata = shuffled_metadata[150:200]
-        test_metadata = shuffled_metadata[:200]
+        raise NotImplementedError("split_type not defined")
 
-    if hyper_params['debug']:
-        train_metadata = train_metadata[0:32]
-        valid_metadata = valid_metadata.iloc[0:32]
-        test_metadata = test_metadata.iloc[0:32]
+    return train_metadata, valid_metadata, test_metadata
+
+
+def load_data(args, hyper_params):
+    # TODO: Add splits for validation
+
+    train_metadata, valid_metadata, test_metadata = get_metadata_splits(args, hyper_params)
 
     train_data = AudioDataset(
         train_metadata,
@@ -59,7 +75,7 @@ def load_data(args, hyper_params):
         window_len=hyper_params['window_len'],
         in_channels=hyper_params['in_channels'],
         preprocess=True,
-        normalize=normalize,
+        normalize=hyper_params['normalize_spectrums'],
 
     )
 
@@ -70,7 +86,7 @@ def load_data(args, hyper_params):
         window_len=hyper_params['window_len'],
         in_channels=hyper_params['in_channels'],
         preprocess=True,
-        normalize=normalize,
+        normalize=hyper_params['normalize_spectrums'],
     )
 
     test_data = AudioDataset(
@@ -80,7 +96,7 @@ def load_data(args, hyper_params):
         window_len=hyper_params['window_len'],
         in_channels=hyper_params['in_channels'],
         preprocess=True,
-        normalize=normalize,
+        normalize=hyper_params['normalize_spectrums'],
     )
 
     train_loader = DataLoader(

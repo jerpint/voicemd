@@ -80,8 +80,8 @@ class AudioDataset(torch.utils.data.Dataset):
 
         if self.normalize:
 
-            # Hack to get values between -1 and 1
-            # since dbs range from -80 to 0
+            # Center values about 0 since
+            # dbs range from -80 to 0
             spec = (spec + 40)
 
             # Other kind of normalization to test out

@@ -84,7 +84,7 @@ def run(args, hyper_params):
     train_loader, dev_loader, test_loader = load_data(args, hyper_params)
     model = load_model(hyper_params)
     optimizer = load_optimizer(hyper_params, model)
-    loss_fun = load_loss(hyper_params)
+    loss_fun = load_loss(hyper_params, train_loader)
 
     train(model, optimizer, loss_fun, train_loader, dev_loader, hyper_params['patience'],
           args.output, max_epoch=hyper_params['max_epoch'],

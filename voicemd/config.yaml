@@ -12,6 +12,8 @@ learning_rate: 0.01
 window_len: 256
 debug: false
 spec_type: librosa_melspec
+split_type: rand_shuffle
+split_rand_state: 42
 
 
 

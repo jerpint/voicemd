@@ -9,7 +9,6 @@ from voicemd.data.dataloaders import AudioDataset
 
 
 def load_data(args, hyper_params):
-    # __TODO__ load the data
     # TODO: Add splits for validation
     fname = args.data + "cleaned_metadata.csv"
 
@@ -39,15 +38,19 @@ def load_data(args, hyper_params):
         valid_metadata = male_metadata_shuffle[75:100].append(female_metadata_shuffle[75:100])
         valid_metadata = valid_metadata.sample(n=len(valid_metadata), random_state=random_state)
 
+        test_metadata = male_metadata_shuffle[100:].append(female_metadata_shuffle[100:])
+        test_metadata = test_metadata.sample(n=len(test_metadata), random_state=random_state)
+
     else:
         shuffled_metadata = metadata.sample(n=len(metadata), random_state=random_state)
         train_metadata = shuffled_metadata[0:150]
         valid_metadata = shuffled_metadata[150:200]
-        #  test_metadata = shuffled_metadata[:200]
+        test_metadata = shuffled_metadata[:200]
 
     if hyper_params['debug']:
         train_metadata = train_metadata[0:32]
         valid_metadata = valid_metadata.iloc[0:32]
+        test_metadata = test_metadata.iloc[0:32]
 
     train_data = AudioDataset(
         train_metadata,
@@ -70,6 +73,16 @@ def load_data(args, hyper_params):
         normalize=normalize,
     )
 
+    test_data = AudioDataset(
+        test_metadata,
+        voice_clips_dir=args.data,
+        spec_type=hyper_params['spec_type'],
+        window_len=hyper_params['window_len'],
+        in_channels=hyper_params['in_channels'],
+        preprocess=True,
+        normalize=normalize,
+    )
+
     train_loader = DataLoader(
         train_data, batch_size=hyper_params["batch_size"], shuffle=True
     )
@@ -78,4 +91,8 @@ def load_data(args, hyper_params):
         dev_data, batch_size=hyper_params["batch_size"], shuffle=False
     )
 
-    return train_loader, dev_loader
+    test_loader = DataLoader(
+        test_data, batch_size=hyper_params["batch_size"], shuffle=False
+    )
+
+    return train_loader, dev_loader, test_loader

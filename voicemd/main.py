@@ -81,7 +81,7 @@ def run(args, hyper_params):
          'exp_name'],
         hyper_params)
 
-    train_loader, dev_loader = load_data(args, hyper_params)
+    train_loader, dev_loader, test_loader = load_data(args, hyper_params)
     model = load_model(hyper_params)
     optimizer = load_optimizer(hyper_params, model)
     loss_fun = load_loss(hyper_params)

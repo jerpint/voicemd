@@ -111,6 +111,7 @@ def train_impl(dev_loader, loss_fun, max_epoch, model, optimizer, output, patien
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     model.to(device)
 
+    # TODO : Move this somewhere more useful
     def get_performance_metrics(outputs, model_target):
         probs = torch.softmax(outputs, 1).detach().numpy() > 0.5
         preds = np.argmax(probs, 1)

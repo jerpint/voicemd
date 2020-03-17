@@ -3,9 +3,7 @@ import pandas as pd
 
 import numpy
 from torch.utils.data import Dataset, DataLoader
-from voicemd.data.dataloaders import AudioDataset
-
-# __TODO__ change the dataloader to suit your needs...
+from voicemd.data.dataloaders import TrainDataset, EvalDataset
 
 
 def load_metadata(args, hyper_params):
@@ -68,7 +66,7 @@ def load_data(args, hyper_params):
 
     train_metadata, valid_metadata, test_metadata = get_metadata_splits(args, hyper_params)
 
-    train_data = AudioDataset(
+    train_data = TrainDataset(
         train_metadata,
         voice_clips_dir=args.data,
         spec_type=hyper_params['spec_type'],
@@ -79,7 +77,7 @@ def load_data(args, hyper_params):
 
     )
 
-    dev_data = AudioDataset(
+    valid_data = TrainDataset(
         valid_metadata,
         voice_clips_dir=args.data,
         spec_type=hyper_params['spec_type'],
@@ -89,8 +87,10 @@ def load_data(args, hyper_params):
         normalize=hyper_params['normalize_spectrums'],
     )
 
-    test_data = AudioDataset(
-        test_metadata,
+    test_data_list = []
+
+    test_data = EvalDataset(
+        test_metadata.iloc[[0]],
         voice_clips_dir=args.data,
         spec_type=hyper_params['spec_type'],
         window_len=hyper_params['window_len'],
@@ -103,12 +103,12 @@ def load_data(args, hyper_params):
         train_data, batch_size=hyper_params["batch_size"], shuffle=True
     )
 
-    dev_loader = DataLoader(
-        dev_data, batch_size=hyper_params["batch_size"], shuffle=False
+    valid_loader = DataLoader(
+        valid_data, batch_size=hyper_params["batch_size"], shuffle=False
     )
 
     test_loader = DataLoader(
         test_data, batch_size=hyper_params["batch_size"], shuffle=False
     )
 
-    return train_loader, dev_loader, test_loader
+    return train_loader, valid_loader, test_loader

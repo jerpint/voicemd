@@ -40,9 +40,6 @@ class AudioDataset(torch.utils.data.Dataset):
         self.normalize = normalize
         self.preprocess = preprocess
 
-
-
-
         # If preprocess it will preprocess and cache each spec
         # This will speed up computation but wont scale if the dataset
         # gets larger
@@ -50,48 +47,6 @@ class AudioDataset(torch.utils.data.Dataset):
             print("Preprocessing spectrograms...")
             self._preprocess_dataset()
 
-    def __len__(self):
-
-        if self.dev:
-            pass
-
-        else:
-            return len(self.metadata)
-
-    def __getitem__(self, idx):
-
-        if self.dev:
-            pass
-
-        else:
-
-            uid = self.metadata.index[idx]
-
-            # Pick a random valid index to sample at
-            # Sample a spectrum at random from the entire spectrum
-            start_idx = np.random.randint(0, self.specs[uid].shape[2]-self.window_len)
-            spec = self.specs[uid][..., start_idx:start_idx+self.window_len]
-
-            # Expand on dims if necessary (for a model architecture expecting e.g. rbg)
-            if self.in_channels != 1:
-                spec = spec.expand(self.in_channels, spec.shape[1], spec.shape[2])
-
-            label = float(self.labels[uid]['gender'] == 'M')
-
-        if self.normalize:
-
-            # Center values about 0 since
-            # dbs range from -80 to 0
-            spec = (spec + 40)
-
-            # Other kind of normalization to test out
-            # eps = 1e-8
-            #  specgram = (specgram - specgram.min()) / (specgram.max() - specgram.min() + eps)
-            #  specgram = (specgram - specgram.min(dim=1)[0]) / (specgram.max(dim=1)[0] - specgram.min(dim=1)[0] + eps)
-            #  specgram -= (torch.mean(specgram, dim=1) + 1e-8)
-            #  specgram -= torch.min(specgram, dim=1)[0]
-
-        return spec, label
 
     def _load_waveform(self, fname):
         # load using torchaudio, its much faster than librosa
@@ -108,7 +63,6 @@ class AudioDataset(torch.utils.data.Dataset):
             waveform = np.concatenate((waveform, waveform))
 
         return waveform, sr
-
 
     def _compute_specgram(self, waveform, sr):
 
@@ -129,8 +83,12 @@ class AudioDataset(torch.utils.data.Dataset):
         else:
             raise ValueError("spec_type not defined")
 
-        return specgram
+        if self.normalize:
+            # Center values about 0 since
+            # dbs range from -80 to 0
+            specgram = (specgram + 40)
 
+        return specgram
 
     def _specgram_from_uid(self, uid):
 
@@ -158,15 +116,49 @@ class AudioDataset(torch.utils.data.Dataset):
         plt.show()
 
 
-if __name__ == "__main__":
+class TrainDataset(AudioDataset):
 
-    from voicemd.utils.utils import load_yaml_config
+    def __len__(self):
 
-    root_dir = "/home/jerpint/voicemd/"
-    dpath = root_dir + "data/"
-    fname = dpath + "voice_clips/cleaned_metadata.csv"
-    voice_clips_dir = dpath + "voice_clips/"
-    config = load_yaml_config("config.yaml")
-    metadata = pd.read_csv(fname)
-    metadata = metadata[metadata["filename"].notna()]
-    audio_dataloader = AudioDataset(metadata, voice_clips_dir)
+        return len(self.metadata)
+
+    def __getitem__(self, idx):
+
+        # Pick a random valid index to sample at
+        # Sample a spectrum at random from the entire spectrum
+        uid = self.metadata.index[idx]
+        start_idx = np.random.randint(0, self.specs[uid].shape[2]-self.window_len)
+        spec = self.specs[uid][..., start_idx:start_idx+self.window_len]
+
+        # Expand on dims if necessary (for a model architecture expecting e.g. rbg)
+        if self.in_channels != 1:
+            spec = spec.expand(self.in_channels, spec.shape[1], spec.shape[2])
+
+        label = float(self.labels[uid]['gender'] == 'M')
+
+        return spec, label
+
+
+class EvalDataset(AudioDataset):
+
+    def __len__(self):
+
+        uid = self.metadata.index[0]
+
+        #TODO: Fix this
+        return self.specs[uid].shape[2] // self.window_len
+
+    def __getitem__(self, idx):
+
+        # Pick a random valid index to sample at
+        # Sample a spectrum at random from the entire spectrum
+        uid = self.metadata.index[0]
+        spec = self.specs[uid][..., idx:idx+self.window_len]
+
+        # Expand on dims if necessary (for a model architecture expecting e.g. rbg)
+        if self.in_channels != 1:
+            spec = spec.expand(self.in_channels, spec.shape[1], spec.shape[2])
+
+        label = float(self.labels[uid]['gender'] == 'M')
+
+        return spec, label

@@ -17,8 +17,8 @@ from yaml import load
 
 logger = logging.getLogger(__name__)
 
-BEST_MODEL_NAME = 'best_model'
-LAST_MODEL_NAME = 'last_model'
+BEST_MODEL_NAME = 'best_model.pt'
+LAST_MODEL_NAME = 'last_model.pt'
 STAT_FILE_NAME = 'stats.yaml'
 
 

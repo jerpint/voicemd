@@ -61,7 +61,6 @@ def align_uid_and_filename(df, dpath):
 
 
 def rename_files(dpath):
-
     old_and_new_filenames = clean_filenames(dpath)
     for oldf, newf in old_and_new_filenames.items():
         os.rename(dpath + oldf, dpath + newf)
@@ -70,7 +69,7 @@ def rename_files(dpath):
 if __name__ == "__main__":
 
     # TODO: Add config file
-    root_dir = "/home/jerpint/voicemd/"
+    root_dir = "/Users/alex/github/voicemd/"
     dpath = root_dir + "data/"
     zipfile_path = dpath + "voice files to share-20200201T172710Z-001.zip"
     fname = dpath + "voice_clips/first_sharing_demographics.xlsx"

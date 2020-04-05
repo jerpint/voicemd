@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import argparse
 import logging
 import os
@@ -9,18 +7,20 @@ import mlflow
 import yaml
 from yaml import load
 
-from voicemd.data.data_loader import load_data
-from voicemd.train import train, load_stats, STAT_FILE_NAME
-from voicemd.utils.hp_utils import check_and_log_hp
-from voicemd.models.model_loader import load_model
-from voicemd.models.model_loader import load_optimizer
-from voicemd.models.model_loader import load_loss
-from voicemd.utils.logging_utils import LoggerWriter
+from data.data_loader import load_data
+from train import train, load_stats, STAT_FILE_NAME
+from utils.hp_utils import check_and_log_hp
+from models.model_loader import load_model
+from models.model_loader import load_optimizer
+from models.model_loader import load_scheduler
+from models.model_loader import load_loss
+from utils.logging_utils import LoggerWriter
 
 logger = logging.getLogger(__name__)
 
 
 def main():
+    os.system("wandb login 91b90542bdde4812440c8b554b9376667c28643f")
     parser = argparse.ArgumentParser()
     # __TODO__ check you need all the following CLI parameters
     parser.add_argument('--log', help='log to this file (in addition to stdout/err)')
@@ -84,9 +84,10 @@ def run(args, hyper_params):
     train_loader, valid_loader, test_loader = load_data(args, hyper_params)
     model = load_model(hyper_params)
     optimizer = load_optimizer(hyper_params, model)
+    scheduler = load_scheduler(hyper_params, optimizer)
     loss_fun = load_loss(hyper_params, train_loader)
 
-    train(model, optimizer, loss_fun, train_loader, valid_loader, hyper_params['patience'],
+    train(model, optimizer, scheduler, loss_fun, train_loader, valid_loader, hyper_params['patience'],
           args.output, max_epoch=hyper_params['max_epoch'],
           use_progress_bar=not args.disable_progressbar, start_from_scratch=args.start_from_scratch)
 

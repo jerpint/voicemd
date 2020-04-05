@@ -1,10 +1,13 @@
 import logging
 import torch
 from torch import optim
+from torch.optim import lr_scheduler
 
-from voicemd.models.my_model import MyModel
-from voicemd.models.densenet import densenet121, densenet_small
-from voicemd.models.simple_cnn import SimpleCNN
+from models.my_model import MyModel
+from models.densenet import densenet121, densenet_small
+from models.simple_cnn import SimpleCNN
+from models.simple_cnn_v2 import SimpleCNN_v2
+from models.simple_cnn_v3 import SimpleCNN_v3
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +27,11 @@ def load_model(hyper_params):
     elif architecture == 'simplecnn':
         model_class = SimpleCNN
 
+    elif architecture == 'simplecnn_v2':
+        model_class = SimpleCNN_v2
+
+    elif architecture == 'simplecnn_v3':
+        model_class = SimpleCNN_v3
     else:
         raise ValueError('architecture {} not supported'.format(architecture))
     logger.info('selected architecture: {}'.format(architecture))
@@ -50,6 +58,32 @@ def load_optimizer(hyper_params, model):
         raise ValueError('optimizer {} not supported'.format(optimizer_name))
     return optimizer
 
+
+def load_scheduler(hyper_params, optimizer):
+    scheduler_name = hyper_params['scheduler']
+    learning_rate = hyper_params['learning_rate']
+
+    if scheduler_name == 'ReduceLROnPlateau':
+        scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'min', threshold=0.1, factor=0.5, patience=10)
+
+    elif scheduler_name == 'CyclicLR':
+        scheduler = lr_scheduler.CyclicLR(optimizer, base_lr=0.00015, max_lr=0.015, step_size_up=200)
+
+    elif scheduler_name == 'CyclicLR_2':
+        scheduler = lr_scheduler.CyclicLR(optimizer, base_lr=0.001, max_lr=0.01)
+
+    elif scheduler_name == 'CyclicLR_3':
+        scheduler = lr_scheduler.CyclicLR(optimizer, base_lr=0.001, max_lr=0.019, step_size_up=1)
+
+    elif scheduler_name == 'none':
+        scheduler = lr_scheduler.CyclicLR(optimizer, base_lr=learning_rate, max_lr=learning_rate, step_size_up=1)
+
+    elif scheduler_name == 'custom':
+        scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=100)
+
+    else:
+        raise ValueError('scheduler {} not supported'.format(scheduler_name))
+    return scheduler
 
 def load_loss(hyper_params, train_loader=None):
 

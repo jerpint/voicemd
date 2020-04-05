@@ -1,6 +1,9 @@
 .idea
 mlruns
 examples/*/output/
+wandb/
+data/
+output/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

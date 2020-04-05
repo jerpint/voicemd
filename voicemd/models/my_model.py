@@ -1,7 +1,7 @@
 import logging
 import torch.nn as nn
 
-from voicemd.utils.hp_utils import check_and_log_hp
+from utils.hp_utils import check_and_log_hp
 
 logger = logging.getLogger(__name__)
 

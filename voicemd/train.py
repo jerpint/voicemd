@@ -1,6 +1,6 @@
 import logging
 import os
-
+import wandb
 import mlflow
 import orion
 import yaml
@@ -8,12 +8,14 @@ import time
 import torch
 import tqdm
 import numpy as np
+import pytz
 
 from sklearn.metrics import confusion_matrix
 from mlflow import log_metric
 from orion.client import report_results
 from yaml import dump
 from yaml import load
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -58,12 +60,12 @@ def load_stats(output):
         stats['mlflow_run_id']
 
 
-def train(model, optimizer, loss_fun, train_loader, dev_loader, patience, output,
+def train(model, optimizer, scheduler, loss_fun, train_loader, dev_loader, patience, output,
           max_epoch, use_progress_bar=True, start_from_scratch=False):
 
     try:
         best_dev_metric = train_impl(
-            dev_loader, loss_fun, max_epoch, model, optimizer, output,
+            dev_loader, loss_fun, max_epoch, model, optimizer, scheduler, output,
             patience, train_loader, use_progress_bar, start_from_scratch)
     except RuntimeError as err:
         if orion.client.IS_ORION_ON and 'CUDA out of memory' in str(err):
@@ -81,8 +83,15 @@ def train(model, optimizer, loss_fun, train_loader, dev_loader, patience, output
         value=-float(best_dev_metric))])
 
 
-def train_impl(dev_loader, loss_fun, max_epoch, model, optimizer, output, patience,
+tz_NY = pytz.timezone('America/New_York')
+datetime_NY = datetime.now(tz_NY)
+
+
+def train_impl(dev_loader, loss_fun, max_epoch, model, optimizer, scheduler, output, patience,
                train_loader, use_progress_bar, start_from_scratch=False):
+
+    timestamp = datetime.now(pytz.timezone('America/New_York'))
+    wandb.init(project="voicemd", name=timestamp.strftime('%H:%M:%S'))
 
     if use_progress_bar:
         pb = tqdm.tqdm
@@ -120,6 +129,8 @@ def train_impl(dev_loader, loss_fun, max_epoch, model, optimizer, output, patien
         conf_mat = confusion_matrix(targs, preds)
         return acc, conf_mat
 
+    val_acc = []
+    flag = 0
 
     for epoch in range(start_epoch, max_epoch):
 
@@ -131,7 +142,9 @@ def train_impl(dev_loader, loss_fun, max_epoch, model, optimizer, output, patien
         examples = 0
         model.train()
         train_steps = len(train_loader)
+
         for i, data in pb(enumerate(train_loader, 0), total=train_steps):
+
             model_input, model_target = data
             # forward + backward + optimize
             optimizer.zero_grad()
@@ -161,9 +174,26 @@ def train_impl(dev_loader, loss_fun, max_epoch, model, optimizer, output, patien
         dev_cumulative_acc = 0.0
         dev_cumulative_conf_mat = np.zeros((2, 2))
         examples = 0
+        total_loss, n_correct, n_samples = 0.0, 0, 0
+
         for i, data in pb(enumerate(dev_loader, 0), total=dev_steps):
             model_input, model_target = data
             with torch.no_grad():
+
+                # model_input = model_input.to(device),
+                # model_target.to(device)
+                # pred_label = model(model_input)
+
+                # loss = criterion(pred_label, model_target)
+                #
+                # _, y_label_ = torch.max(model_target, 1)
+                # n_correct += (y_label_ == model_target).sum().item()
+                # total_loss += loss.item() * model_input.shape[0]
+                # n_samples += model_input.shape[0]
+                #
+                # val_loss = total_loss / n_samples
+                # val_acc = n_correct / n_samples * 100
+
                 outputs = model(model_input.to(device))
                 model_target = model_target.type(torch.long)
                 model_target = model_target.to(device)
@@ -173,6 +203,7 @@ def train_impl(dev_loader, loss_fun, max_epoch, model, optimizer, output, patien
                 acc, conf_mat = get_performance_metrics(outputs, model_target)
                 dev_cumulative_acc += acc
                 dev_cumulative_conf_mat += conf_mat
+
             examples += model_target.shape[0]
 
         print(dev_cumulative_conf_mat)
@@ -205,6 +236,28 @@ def train_impl(dev_loader, loss_fun, max_epoch, model, optimizer, output, patien
                 (dev_end - train_end) / 60)
         )
 
+        # get current lr
+        for param_group in optimizer.param_groups:
+            current_lr = param_group['lr']
+
+        val_acc.append(avg_dev_acc)
+
+        scheduler.step()
+
+        # if epoch > 100:
+        #
+        #     if val_acc[-1] < max(val_acc[:-1]):
+        #         flag += 1
+        #
+        #     if flag == 15:
+        #         for param_group in optimizer.param_groups:
+        #             new_lr = current_lr * 0.5
+        #             param_group['lr'] = new_lr
+        #             flag = 0
+
+        wandb.log({"Val Accuracy": avg_dev_acc, "Val Loss": avg_dev_loss, "Train Loss": avg_train_loss,
+                   "Train Accuracy": avg_train_acc, "Learning Rate": current_lr, "Flag Count": flag})
+
         write_stats(output, best_dev_metric, epoch + 1, remaining_patience)
         log_metric("best_dev_metric", best_dev_metric)
 
@@ -214,3 +267,6 @@ def train_impl(dev_loader, loss_fun, max_epoch, model, optimizer, output, patien
     logger.info('training completed (epoch done {} - max epoch {})'.format(epoch + 1, max_epoch))
     logger.info('Finished Training')
     return best_dev_metric
+
+
+#python voicemd/main.py --data /Users/alex/github/voicemd/data/voice_clips/ --output output --config voicemd/config.yaml  --start_from_scratch

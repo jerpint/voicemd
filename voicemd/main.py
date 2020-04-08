@@ -9,7 +9,7 @@ import mlflow
 import yaml
 from yaml import load
 
-from voicemd.data.data_loader import load_data
+from voicemd.data.prepare_dataloaders import load_data
 from voicemd.train import train, load_stats, STAT_FILE_NAME
 from voicemd.utils.hp_utils import check_and_log_hp
 from voicemd.models.model_loader import load_model

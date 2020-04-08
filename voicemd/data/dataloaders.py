@@ -1,18 +1,17 @@
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
+import numpy as np
 import torch
-import torchaudio
-import torchvision
-import librosa
 
+from voicemd.data.process_sound import compute_specgram, load_waveform
 
 class AudioDataset(torch.utils.data.Dataset):
     """Voice recordings dataset."""
 
-    def __init__(self, metadata,
+    def __init__(self,
+                 metadata,
                  voice_clips_dir,
                  spec_type,
                  in_channels=1,
@@ -40,6 +39,9 @@ class AudioDataset(torch.utils.data.Dataset):
         self.normalize = normalize
         self.preprocess = preprocess
 
+        self._compute_specgram = compute_specgram
+        self._load_waveform = load_waveform
+
         # If preprocess it will preprocess and cache each spec
         # This will speed up computation but wont scale if the dataset
         # gets larger
@@ -47,60 +49,19 @@ class AudioDataset(torch.utils.data.Dataset):
             print("Preprocessing spectrograms...")
             self._preprocess_dataset()
 
-
-    def _load_waveform(self, fname):
-        # load using torchaudio, its much faster than librosa
-        waveform, sr = torchaudio.load(fname)
-        waveform = torch.squeeze(waveform).detach().numpy()
-
-        # if it's stereo, convert it to mono
-        if waveform.shape[0] == 2:
-            waveform = librosa.to_mono(waveform)
-
-        # loop the sound to make the segment long enough
-        min_seconds = 5
-        if len(waveform) / sr < min_seconds:
-            waveform = np.concatenate((waveform, waveform))
-
-        return waveform, sr
-
-    def _compute_specgram(self, waveform, sr):
-
-        if self.spec_type == 'librosa_melspec':
-            specgram = librosa.feature.melspectrogram(waveform, sr=sr, hop_length=512, win_length=512, fmax=8000, n_mels=80)
-            specgram = librosa.power_to_db(specgram, ref=np.max)
-            specgram = torch.tensor(specgram).unsqueeze(dim=0)
-
-        elif self.spec_type == 'pytorch_spec':
-            specgram = torchaudio.transforms.Spectrogram(n_fft=400, normalized=True)(waveform)
-
-        elif self.spec_type == 'pytorch_melspec':
-            specgram = torchaudio.transforms.MelSpectrogram(sample_rate=sr, n_mels=40)(waveform)
-
-        elif self.spec_type == 'pytorch_mfcc':
-            specgram = torchaudio.transforms.MFCC(sample_rate=sr, n_mfcc=40, log_mels=False, melkwargs={'n_fft': 800})(waveform)
-
-        else:
-            raise ValueError("spec_type not defined")
-
-        if self.normalize:
-            # Center values about 0 since
-            # dbs range from -80 to 0
-            specgram = (specgram + 40)
-
-        return specgram
-
     def _specgram_from_uid(self, uid):
+        '''Retrieve a specgram from the patient's UID'''
 
         fname = self.metadata.loc[uid]['filename']
         full_path = Path(self.voice_clips_dir, fname)
         waveform, sr = self._load_waveform(full_path)
-        specgram = self._compute_specgram(waveform, sr)
+        specgram = self._compute_specgram(waveform, sr, self.spec_type, self.normalize)
 
         return specgram
 
 
     def _preprocess_dataset(self):
+        '''Cache the dataset in RAM'''
         self.specs = {
             uid: self._specgram_from_uid(uid) for uid in self.metadata.index
         }
@@ -108,6 +69,7 @@ class AudioDataset(torch.utils.data.Dataset):
         self.labels = {uid: self.metadata.loc[uid] for uid in self.metadata.index}
 
     def show_sample(self, sample):
+        '''For visualization only'''
 
         fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(20, 4))
         cax = ax.matshow(torch.squeeze(sample[0]), interpolation='nearest', aspect='auto', cmap=plt.cm.afmhot, origin='lower')
@@ -145,7 +107,7 @@ class EvalDataset(AudioDataset):
 
         uid = self.metadata.index[0]
 
-        #TODO: Fix this
+        #TODO: Update this
         return self.specs[uid].shape[2] // self.window_len
 
     def __getitem__(self, idx):
@@ -162,3 +124,49 @@ class EvalDataset(AudioDataset):
         label = float(self.labels[uid]['gender'] == 'M')
 
         return spec, label
+
+
+class PredictDataset(torch.utils.data.Dataset):
+    '''To be used for predicting single sounds'''
+
+    def __init__(self,
+                 sound_filename,
+                 spec_type,
+                 in_channels,
+                 window_len,
+                 normalize,
+                 preprocess,
+                 transform=None):
+        """
+        Args:
+            csv_file (string): Path to the csv file with annotations.
+            voice_clips_dir (string): Directory with all the images.
+            transform (callable, optional): Optional transform to be applied
+                on a sample.
+        """
+        self.sound_filename = sound_filename
+        self.spec_type = spec_type
+        self.transform = transform
+        self.in_channels = in_channels
+        self.window_len = window_len
+        self.normalize = normalize
+        self.preprocess = preprocess
+
+        self._compute_specgram = compute_specgram
+        self._load_waveform = load_waveform
+
+        self.waveform, self.sr = self._load_waveform(self.sound_filename)
+        self.specgram = self._compute_specgram(self.waveform, self.sr, self.spec_type, self.normalize)
+
+    def __len__(self):
+
+        '''computes the result on all possible spectrograms'''
+        return self.specgram.shape[2] - self.window_len
+
+    def __getitem__(self, idx):
+
+        spec = self.specgram[..., idx:idx+self.window_len]
+        if self.in_channels != 1:
+            spec = spec.expand(self.in_channels, spec.shape[1], spec.shape[2])
+
+        return spec

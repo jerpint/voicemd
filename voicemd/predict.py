@@ -1,28 +1,29 @@
 import torch
 import yaml
-from yaml import load
 import numpy as np
-
+from tqdm import tqdm
+from yaml import load
 from voicemd.data.prepare_dataloaders import make_predict_dataloader
 from voicemd.models.model_loader import load_model
 
-# # Adapt these filepaths to suit your needs
-# config_filename = '/home/jerpint/voicemd/voicemd/config.yaml'
-# sound_filename = '/home/jerpint/voicemd/data/voice_clips/BL03.wav'
-# best_model_path = '/home/jerpint/voicemd/voicemd/simple_cnn_best/best_model'
 
+def make_a_prediction(sound_filepath, config_filepath ='voicemd/config.yaml',
+                      best_model_path='voicemd/output/best_model.pt'):
 
-def make_prediction(config_filename, sound_filename, best_model_path):
-    with open(config_filename, 'r') as stream:
+    sound_filename = sound_filepath.split('/')[-1]
+    print(f'starting analysis of {sound_filename}...')
+
+    with open(config_filepath, 'r') as stream:
         hyper_params = load(stream, Loader=yaml.FullLoader)
     model = load_model(hyper_params)
     model.load_state_dict(torch.load(best_model_path))
-    predict_dataloader = make_predict_dataloader(sound_filename, hyper_params)
+    predict_dataloader = make_predict_dataloader(sound_filepath, hyper_params)
 
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     all_probs = []
-    for data in predict_dataloader:
+
+    for data in tqdm(predict_dataloader):
 
         pred = model(data.to(device))
         probs = torch.nn.functional.softmax(pred, dim=1)
@@ -30,5 +31,7 @@ def make_prediction(config_filename, sound_filename, best_model_path):
 
     all_probs = np.array(all_probs)
     avg_prob = np.sum(all_probs, 0) / len(all_probs)
-    print("Confidence prediction of male %:", avg_prob[1]*100)
-    print("Confidence prediction of female %:", avg_prob[0]*100)
+
+    print(f"{sound_filename} confidence prediction of male %: {avg_prob[1]*100}")
+    print(f"{sound_filename} confidence prediction of female %: {avg_prob[0]*100}")
+

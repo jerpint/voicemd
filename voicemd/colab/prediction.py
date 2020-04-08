@@ -10,3 +10,4 @@ for audio_file in os.listdir('./audio_files/'):
         make_a_prediction('./audio_files/'+audio_file)
     else:
         print(f'{audio_file} seems to have the wrong extension. We only support .wav and .mp3 work at this time.\n')
+shutil.rmtree('./audio_files/')

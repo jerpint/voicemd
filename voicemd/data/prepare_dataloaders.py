@@ -3,7 +3,7 @@ import pandas as pd
 
 import numpy
 from torch.utils.data import Dataset, DataLoader
-from voicemd.data.dataloaders import TrainDataset, EvalDataset
+from voicemd.data.dataloaders import TrainDataset, EvalDataset, PredictDataset
 
 
 def load_metadata(args, hyper_params):
@@ -112,3 +112,22 @@ def load_data(args, hyper_params):
     )
 
     return train_loader, valid_loader, test_loader
+
+
+def make_predict_dataloader(sound_filename, hyper_params):
+    '''Useful for prediction on single file'''
+
+    predict_dataset = PredictDataset(
+            sound_filename=sound_filename,
+            spec_type=hyper_params['spec_type'],
+            window_len=hyper_params['window_len'],
+            in_channels=hyper_params['in_channels'],
+            preprocess=True,
+            normalize=hyper_params['normalize_spectrums'],
+        )
+
+    predict_dataloader = DataLoader(
+         predict_dataset, batch_size=hyper_params["batch_size"], shuffle=False
+        )
+
+    return predict_dataloader

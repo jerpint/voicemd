@@ -8,6 +8,11 @@ def re_arrange_files(source='./', destination='./audio_files/'):
     except FileExistsError:
         pass
 
+    try:
+        shutil.rmtree('./sample_data/')
+    except FileNotFoundError:
+        pass
+
     for file in os.listdir(source):
 
         if file.endswith('zip'):

@@ -11,7 +11,7 @@ def make_a_prediction(sound_filepath, config_filepath ='voicemd/config.yaml',
                       best_model_path='voicemd/output/best_model.pt'):
 
     sound_filename = sound_filepath.split('/')[-1]
-    print(f'starting analysis of {sound_filename}...')
+    print(f'Analyzing {sound_filename}...')
 
     with open(config_filepath, 'r') as stream:
         hyper_params = load(stream, Loader=yaml.FullLoader)
@@ -32,6 +32,5 @@ def make_a_prediction(sound_filepath, config_filepath ='voicemd/config.yaml',
     all_probs = np.array(all_probs)
     avg_prob = np.sum(all_probs, 0) / len(all_probs)
 
-    print(f"{sound_filename} confidence prediction of male %: {avg_prob[1]*100}")
-    print(f"{sound_filename} confidence prediction of female %: {avg_prob[0]*100}")
-
+    print(f"{sound_filename} probability to be a male's voice: {round((avg_prob[1]*100),2)}%")
+    print(f"{sound_filename} probability to be a female's voice: {round((avg_prob[0]*100),2)}%\n")

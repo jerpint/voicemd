@@ -58,12 +58,12 @@ def load_stats(output):
         stats['mlflow_run_id']
 
 
-def train(model, optimizer, loss_fun, train_loader, dev_loader, patience, output,
+def train(model, optimizer, loss_fun, train_loader, valid_loaders, patience, output,
           max_epoch, use_progress_bar=True, start_from_scratch=False):
 
     try:
         best_dev_metric = train_impl(
-            dev_loader, loss_fun, max_epoch, model, optimizer, output,
+            valid_loaders, loss_fun, max_epoch, model, optimizer, output,
             patience, train_loader, use_progress_bar, start_from_scratch)
     except RuntimeError as err:
         if orion.client.IS_ORION_ON and 'CUDA out of memory' in str(err):
@@ -81,7 +81,49 @@ def train(model, optimizer, loss_fun, train_loader, dev_loader, patience, output
         value=-float(best_dev_metric))])
 
 
-def train_impl(dev_loader, loss_fun, max_epoch, model, optimizer, output, patience,
+def evaluate_loader(dev_loader):
+    dev_steps = len(dev_loader)
+    cumulative_loss = 0.0
+    cumulative_acc = 0.0
+    cumulative_conf_mat = np.zeros((2, 2))
+    examples = 0
+    all_probs = []
+    for data in dev_loader:
+        model_input, model_target = data
+        with torch.no_grad():
+            outputs = model(model_input.to(device))
+            model_target = model_target.type(torch.long)
+            model_target = model_target.to(device)
+            loss = loss_fun(outputs, model_target)
+            cumulative_loss += loss.item()
+
+            probs = torch.nn.functional.softmax(outputs, dim=1)
+            all_probs.extend(probs.detach().numpy())
+            acc, conf_mat = get_performance_metrics(outputs, model_target)
+            cumulative_acc += acc
+            cumulative_conf_mat += conf_mat
+        examples += model_target.shape[0]
+
+    all_probs = np.array(all_probs)
+    avg_prob = np.sum(all_probs, 0) / len(all_probs)
+    avg_loss = cumulative_loss / examples
+    avg_acc = cumulative_acc / dev_steps
+    gender = int(model_target[0])
+    final_gender_prediction = np.argmax(avg_prob)
+    gender_confidence = avg_prob[final_gender_prediction]
+    patient_uid = dev_loader.dataset.metadata.index[0]
+
+    final_prediction = {
+        'uid': patient_uid,
+        'gender': gender,
+        'gender_prediction': final_gender_prediction,
+        'gender_confidence': gender_confidence
+    }
+
+    return avg_loss, avg_acc, cumulative_conf_mat, final_prediction
+
+
+def train_impl(valid_loaders, loss_fun, max_epoch, model, optimizer, output, patience,
                train_loader, use_progress_bar, start_from_scratch=False):
 
     if use_progress_bar:
@@ -117,7 +159,7 @@ def train_impl(dev_loader, loss_fun, max_epoch, model, optimizer, output, patien
         preds = np.argmax(probs, 1)
         targs = model_target.detach().numpy()
         acc = np.sum(np.equal(preds, targs)) / len(preds)
-        conf_mat = confusion_matrix(targs, preds)
+        conf_mat = confusion_matrix(targs, preds, labels=[0,1])
         return acc, conf_mat
 
 
@@ -125,64 +167,61 @@ def train_impl(dev_loader, loss_fun, max_epoch, model, optimizer, output, patien
 
         start = time.time()
         # train
+        n_passes = 1  # sample each patient randomly n times in each epoch before validation
         train_cumulative_loss = 0.0
         train_cumulative_acc = 0.0
         train_cumulative_conf_mat = np.zeros((2, 2))
         examples = 0
         model.train()
-        train_steps = len(train_loader)
-        for i, data in pb(enumerate(train_loader, 0), total=train_steps):
-            model_input, model_target = data
-            # forward + backward + optimize
-            optimizer.zero_grad()
-            outputs = model(model_input.to(device))
-            model_target = model_target.type(torch.long)
-            model_target = model_target.to(device)
-            loss = loss_fun(outputs, model_target)
-            loss.backward()
-            optimizer.step()
+        train_steps = len(train_loader) * n_passes
+        for i in pb(range(n_passes), total=n_passes):
+            for data in train_loader:
+                model_input, model_target = data
+                # forward + backward + optimize
+                optimizer.zero_grad()
+                outputs = model(model_input.to(device))
+                model_target = model_target.type(torch.long)
+                model_target = model_target.to(device)
+                loss = loss_fun(outputs, model_target)
+                loss.backward()
+                optimizer.step()
 
-            acc, conf_mat = get_performance_metrics(outputs, model_target)
+                acc, conf_mat = get_performance_metrics(outputs, model_target)
 
-            train_cumulative_loss += loss.item()
-            train_cumulative_acc += acc
-            train_cumulative_conf_mat += conf_mat
-            examples += model_target.shape[0]
+                train_cumulative_loss += loss.item()
+                train_cumulative_acc += acc
+                train_cumulative_conf_mat += conf_mat
+                examples += model_target.shape[0]
 
         train_end = time.time()
         avg_train_loss = train_cumulative_loss / examples
         avg_train_acc = train_cumulative_acc / train_steps
         print(train_cumulative_conf_mat)
+        log_metric("train_loss", avg_train_loss, step=epoch)
+        log_metric("train_acc", avg_train_acc, step=epoch)
 
         # dev
         model.eval()
-        dev_steps = len(dev_loader)
+
+
+        # Validation
         dev_cumulative_loss = 0.0
         dev_cumulative_acc = 0.0
         dev_cumulative_conf_mat = np.zeros((2, 2))
-        examples = 0
-        for i, data in pb(enumerate(dev_loader, 0), total=dev_steps):
-            model_input, model_target = data
-            with torch.no_grad():
-                outputs = model(model_input.to(device))
-                model_target = model_target.type(torch.long)
-                model_target = model_target.to(device)
-                loss = loss_fun(outputs, model_target)
-                dev_cumulative_loss += loss.item()
+        dev_final_predictions = []
+        for valid_loader in pb(valid_loaders, total=len(valid_loaders)):
+            loss, acc, conf_mat, final_prediction = evaluate_loader(valid_loader)
+            dev_cumulative_acc += acc
+            dev_cumulative_conf_mat += conf_mat
+            dev_final_predictions.append(final_prediction)
 
-                acc, conf_mat = get_performance_metrics(outputs, model_target)
-                dev_cumulative_acc += acc
-                dev_cumulative_conf_mat += conf_mat
-            examples += model_target.shape[0]
+        avg_dev_loss = dev_cumulative_loss / len(valid_loaders)
+        avg_dev_acc = dev_cumulative_acc / len(valid_loaders)
+        print("Confidence matrix on every dev spectrum: \n", dev_cumulative_conf_mat)
 
-        print(dev_cumulative_conf_mat)
-        avg_dev_loss = dev_cumulative_loss / examples
-        avg_dev_acc = dev_cumulative_acc / dev_steps
-        log_metric("train_loss", avg_train_loss, step=epoch)
-        log_metric("train_acc", avg_train_acc, step=epoch)
+        # TODO : get metrics for each patient prediction
         log_metric("dev_loss", avg_dev_loss, step=epoch)
         log_metric("dev_acc", avg_dev_acc, step=epoch)
-
         dev_end = time.time()
         torch.save(model.state_dict(), os.path.join(output, LAST_MODEL_NAME))
 
@@ -195,14 +234,14 @@ def train_impl(dev_loader, loss_fun, max_epoch, model, optimizer, output, patien
 
         logger.info(
             'done #epoch {:3} => loss {:5.3f}, acc {:5.3f}- dev loss {:3.4f} dev-acc {:5.3f}, (will try for {} more epoch) - '
-            'train min. {:4.2f} / dev min. {:4.2f}'.format(
-                epoch, avg_train_loss,
+            .format(
+                epoch,
+                avg_train_loss,
                 avg_train_acc,
                 avg_dev_loss,
                 avg_dev_acc,
                 remaining_patience,
-                (train_end - start) / 60,
-                (dev_end - train_end) / 60)
+            )
         )
 
         write_stats(output, best_dev_metric, epoch + 1, remaining_patience)

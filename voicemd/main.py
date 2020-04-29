@@ -81,12 +81,12 @@ def run(args, hyper_params):
          'exp_name'],
         hyper_params)
 
-    train_loader, valid_loader, test_loader = load_data(args, hyper_params)
+    train_loader, valid_loaders, test_loaders = load_data(args, hyper_params)
     model = load_model(hyper_params)
     optimizer = load_optimizer(hyper_params, model)
     loss_fun = load_loss(hyper_params, train_loader)
 
-    train(model, optimizer, loss_fun, train_loader, valid_loader, hyper_params['patience'],
+    train(model, optimizer, loss_fun, train_loader, valid_loaders, hyper_params['patience'],
           args.output, max_epoch=hyper_params['max_epoch'],
           use_progress_bar=not args.disable_progressbar, start_from_scratch=args.start_from_scratch)
 

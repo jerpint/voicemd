@@ -1,6 +1,5 @@
 import torch
 import torchaudio
-import torchvision
 import librosa
 import numpy as np
 
@@ -30,6 +29,7 @@ def compute_specgram(waveform, sr, spec_type, normalize):
         specgram = (specgram + 40)
 
     return specgram
+
 
 def load_waveform(fname):
     # load using torchaudio, its much faster than librosa

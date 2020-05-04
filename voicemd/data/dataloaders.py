@@ -1,11 +1,11 @@
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-import pandas as pd
 import numpy as np
 import torch
 
 from voicemd.data.process_sound import compute_specgram, load_waveform
+
 
 class AudioDataset(torch.utils.data.Dataset):
     """Voice recordings dataset."""

@@ -176,7 +176,7 @@ def train_impl(valid_loaders, loss_fun, max_epoch, model, optimizer, output, pat
 
         start = time.time()
         # train
-        n_passes = 5  # sample each patient randomly n times in each epoch before validation
+        n_passes = 1  # sample each patient randomly n times in each epoch before validation
         train_cumulative_loss = 0.0
         train_cumulative_acc = 0.0
         train_cumulative_conf_mat = np.zeros((2, 2))
@@ -220,6 +220,7 @@ def train_impl(valid_loaders, loss_fun, max_epoch, model, optimizer, output, pat
         for valid_loader in pb(valid_loaders, total=len(valid_loaders)):
             loss, acc, conf_mat, final_prediction = evaluate_loader(valid_loader, model, device, loss_fun)
             dev_cumulative_acc += acc
+            dev_cumulative_loss += loss
             dev_cumulative_conf_mat += conf_mat
             dev_patient_predictions.append(final_prediction)
 
@@ -230,7 +231,6 @@ def train_impl(valid_loaders, loss_fun, max_epoch, model, optimizer, output, pat
         print("Confidence matrix on every validation spectrum: \n", dev_cumulative_conf_mat)
         print("Confidence matrix per validation patient: \n", dev_per_patient_conf_mat)
 
-        # TODO : get metrics for each patient prediction
         log_metric("dev_loss", avg_dev_loss, step=epoch)
         log_metric("dev_acc", avg_dev_acc, step=epoch)
         dev_end = time.time()

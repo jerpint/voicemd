@@ -90,6 +90,9 @@ def run(args, hyper_params):
           args.output, max_epoch=hyper_params['max_epoch'],
           use_progress_bar=not args.disable_progressbar, start_from_scratch=args.start_from_scratch)
 
+    #TODO: Eval on test set
+    # eval(best_model, loss_fun, test_loaders)
+
 
 if __name__ == '__main__':
     main()

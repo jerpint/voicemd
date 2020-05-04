@@ -81,7 +81,7 @@ def train(model, optimizer, loss_fun, train_loader, valid_loaders, patience, out
         value=-float(best_dev_metric))])
 
 
-def evaluate_loader(dev_loader):
+def evaluate_loader(dev_loader, model, device, loss_fun):
     dev_steps = len(dev_loader)
     cumulative_loss = 0.0
     cumulative_acc = 0.0
@@ -99,7 +99,7 @@ def evaluate_loader(dev_loader):
 
             probs = torch.nn.functional.softmax(outputs, dim=1)
             all_probs.extend(probs.detach().numpy())
-            acc, conf_mat = get_performance_metrics(outputs, model_target)
+            acc, conf_mat = get_batch_performance_metrics(outputs, model_target)
             cumulative_acc += acc
             cumulative_conf_mat += conf_mat
         examples += model_target.shape[0]
@@ -122,6 +122,25 @@ def evaluate_loader(dev_loader):
 
     return avg_loss, avg_acc, cumulative_conf_mat, final_prediction
 
+
+def get_batch_performance_metrics(outputs, model_target):
+    probs = torch.softmax(outputs, 1).detach().numpy() > 0.5
+    preds = np.argmax(probs, 1)
+    targs = model_target.detach().numpy()
+    acc = np.sum(np.equal(preds, targs)) / len(preds)
+    conf_mat = confusion_matrix(targs, preds, labels=[0,1])
+    return acc, conf_mat
+
+def performance_metrics_per_patient(patient_predictions):
+    patient_targs = []
+    patient_preds = []
+    for patient_pred in patient_predictions:
+        patient_targs.append(patient_pred['gender'])
+        patient_preds.append(patient_pred['gender_prediction'])
+
+    conf_mat = confusion_matrix(patient_targs, patient_preds, labels=[0,1])
+
+    return conf_mat
 
 def train_impl(valid_loaders, loss_fun, max_epoch, model, optimizer, output, patience,
                train_loader, use_progress_bar, start_from_scratch=False):
@@ -153,21 +172,11 @@ def train_impl(valid_loaders, loss_fun, max_epoch, model, optimizer, output, pat
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     model.to(device)
 
-    # TODO : Move this somewhere more useful
-    def get_performance_metrics(outputs, model_target):
-        probs = torch.softmax(outputs, 1).detach().numpy() > 0.5
-        preds = np.argmax(probs, 1)
-        targs = model_target.detach().numpy()
-        acc = np.sum(np.equal(preds, targs)) / len(preds)
-        conf_mat = confusion_matrix(targs, preds, labels=[0,1])
-        return acc, conf_mat
-
-
     for epoch in range(start_epoch, max_epoch):
 
         start = time.time()
         # train
-        n_passes = 1  # sample each patient randomly n times in each epoch before validation
+        n_passes = 5  # sample each patient randomly n times in each epoch before validation
         train_cumulative_loss = 0.0
         train_cumulative_acc = 0.0
         train_cumulative_conf_mat = np.zeros((2, 2))
@@ -186,7 +195,7 @@ def train_impl(valid_loaders, loss_fun, max_epoch, model, optimizer, output, pat
                 loss.backward()
                 optimizer.step()
 
-                acc, conf_mat = get_performance_metrics(outputs, model_target)
+                acc, conf_mat = get_batch_performance_metrics(outputs, model_target)
 
                 train_cumulative_loss += loss.item()
                 train_cumulative_acc += acc
@@ -200,24 +209,26 @@ def train_impl(valid_loaders, loss_fun, max_epoch, model, optimizer, output, pat
         log_metric("train_loss", avg_train_loss, step=epoch)
         log_metric("train_acc", avg_train_acc, step=epoch)
 
-        # dev
-        model.eval()
 
 
         # Validation
+        model.eval()
         dev_cumulative_loss = 0.0
         dev_cumulative_acc = 0.0
         dev_cumulative_conf_mat = np.zeros((2, 2))
-        dev_final_predictions = []
+        dev_patient_predictions = []
         for valid_loader in pb(valid_loaders, total=len(valid_loaders)):
-            loss, acc, conf_mat, final_prediction = evaluate_loader(valid_loader)
+            loss, acc, conf_mat, final_prediction = evaluate_loader(valid_loader, model, device, loss_fun)
             dev_cumulative_acc += acc
             dev_cumulative_conf_mat += conf_mat
-            dev_final_predictions.append(final_prediction)
+            dev_patient_predictions.append(final_prediction)
 
         avg_dev_loss = dev_cumulative_loss / len(valid_loaders)
         avg_dev_acc = dev_cumulative_acc / len(valid_loaders)
-        print("Confidence matrix on every dev spectrum: \n", dev_cumulative_conf_mat)
+        dev_per_patient_conf_mat = performance_metrics_per_patient(dev_patient_predictions)
+
+        print("Confidence matrix on every validation spectrum: \n", dev_cumulative_conf_mat)
+        print("Confidence matrix per validation patient: \n", dev_per_patient_conf_mat)
 
         # TODO : get metrics for each patient prediction
         log_metric("dev_loss", avg_dev_loss, step=epoch)

@@ -23,17 +23,27 @@ logger = logging.getLogger(__name__)
 def main():
     parser = argparse.ArgumentParser()
     # __TODO__ check you need all the following CLI parameters
-    parser.add_argument('--log', help='log to this file (in addition to stdout/err)')
-    parser.add_argument('--config',
-                        help='config file with generic hyper-parameters,  such as optimizer, '
-                             'batch_size, ... -  in yaml format')
-    parser.add_argument('--data', help='path to data', required=True)
-    parser.add_argument('--output', help='path to outputs - will store files here', required=True)
-    parser.add_argument('--disable_progressbar', action='store_true',
-                        help='will disable the progressbar while going over the mini-batch')
-    parser.add_argument('--start_from_scratch', action='store_true',
-                        help='will not load any existing saved model - even if present')
-    parser.add_argument('--debug', action='store_true')
+    parser.add_argument("--log", help="log to this file (in addition to stdout/err)")
+    parser.add_argument(
+        "--config",
+        help="config file with generic hyper-parameters,  such as optimizer, "
+        "batch_size, ... -  in yaml format",
+    )
+    parser.add_argument("--data", help="path to data", required=True)
+    parser.add_argument(
+        "--output", help="path to outputs - will store files here", required=True
+    )
+    parser.add_argument(
+        "--disable_progressbar",
+        action="store_true",
+        help="will disable the progressbar while going over the mini-batch",
+    )
+    parser.add_argument(
+        "--start_from_scratch",
+        action="store_true",
+        help="will not load any existing saved model - even if present",
+    )
+    parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
@@ -52,15 +62,18 @@ def main():
         sys.stderr = LoggerWriter(logger.warning)
 
     if args.config is not None:
-        with open(args.config, 'r') as stream:
+        with open(args.config, "r") as stream:
             hyper_params = load(stream, Loader=yaml.FullLoader)
     else:
         hyper_params = {}
 
     # to be done as soon as possible otherwise mlflow will not log with the proper exp. name
-    if 'exp_name' in hyper_params:
-        mlflow.set_experiment(hyper_params['exp_name'])
-    if os.path.exists(os.path.join(args.output, STAT_FILE_NAME)) and not args.start_from_scratch:
+    if "exp_name" in hyper_params:
+        mlflow.set_experiment(hyper_params["exp_name"])
+    if (
+        os.path.exists(os.path.join(args.output, STAT_FILE_NAME))
+        and not args.start_from_scratch
+    ):
         _, _, _, mlflow_run_id = load_stats(args.output)
         mlflow.start_run(run_id=mlflow_run_id)
     else:
@@ -77,19 +90,39 @@ def run(args, hyper_params):
     # __TODO__ change the hparam that are used from the training algorithm
     # (and NOT the model - these will be specified in the model itself)
     check_and_log_hp(
-        ['batch_size', 'optimizer', 'patience', 'architecture', 'max_epoch',
-         'exp_name'],
-        hyper_params)
+        [
+            "batch_size",
+            "optimizer",
+            "patience",
+            "architecture",
+            "max_epoch",
+            "exp_name",
+        ],
+        hyper_params,
+    )
 
-    train_loader, valid_loader, test_loader = load_data(args, hyper_params)
+    train_loader, valid_loaders, test_loaders = load_data(args, hyper_params)
     model = load_model(hyper_params)
     optimizer = load_optimizer(hyper_params, model)
     loss_fun = load_loss(hyper_params, train_loader)
 
-    train(model, optimizer, loss_fun, train_loader, valid_loader, hyper_params['patience'],
-          args.output, max_epoch=hyper_params['max_epoch'],
-          use_progress_bar=not args.disable_progressbar, start_from_scratch=args.start_from_scratch)
+    train(
+        model,
+        optimizer,
+        loss_fun,
+        train_loader,
+        valid_loaders,
+        test_loaders,
+        hyper_params["patience"],
+        args.output,
+        max_epoch=hyper_params["max_epoch"],
+        use_progress_bar=not args.disable_progressbar,
+        start_from_scratch=args.start_from_scratch,
+    )
+
+    # TODO: Eval on test set
+    # eval(best_model, loss_fun, test_loaders)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

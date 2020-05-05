@@ -119,7 +119,6 @@ def train_impl(dev_loader, loss_fun, max_epoch, model, optimizer, output, patien
         conf_mat = confusion_matrix(targs, preds)
         return acc, conf_mat
 
-
     for epoch in range(start_epoch, max_epoch):
 
         start = time.time()
@@ -130,6 +129,7 @@ def train_impl(dev_loader, loss_fun, max_epoch, model, optimizer, output, patien
         examples = 0
         model.train()
         train_steps = len(train_loader)
+
         for i, data in pb(enumerate(train_loader, 0), total=train_steps):
             model_input, model_target = data
             # forward + backward + optimize

@@ -20,59 +20,93 @@ from voicemd.eval import evaluate_loaders, get_batch_performance_metrics
 
 logger = logging.getLogger(__name__)
 
-BEST_MODEL_NAME = 'best_model'
-LAST_MODEL_NAME = 'last_model'
-STAT_FILE_NAME = 'stats.yaml'
+BEST_MODEL_NAME = "best_model"
+LAST_MODEL_NAME = "last_model"
+STAT_FILE_NAME = "stats.yaml"
 
 
 def reload_model(output, model_name, model, optimizer, start_from_scratch=False):
     saved_model = os.path.join(output, model_name)
     if start_from_scratch and os.path.exists(saved_model):
-        logger.info('saved model file "{}" already exists - but NOT loading it '
-                    '(cause --start_from_scratch)'.format(output))
+        logger.info(
+            'saved model file "{}" already exists - but NOT loading it '
+            "(cause --start_from_scratch)".format(output)
+        )
         return
     if os.path.exists(saved_model):
         logger.info('saved model file "{}" already exists - loading it'.format(output))
         model.load_state_dict(torch.load(saved_model))
 
         stats = load_stats(output)
-        logger.info('model status: {}'.format(stats))
+        logger.info("model status: {}".format(stats))
         return stats
     if os.path.exists(output):
-        logger.info('saved model file not found - but output folder exists already - keeping it')
+        logger.info(
+            "saved model file not found - but output folder exists already - keeping it"
+        )
         return
 
-    logger.info('no saved model file found - nor output folder - creating it')
+    logger.info("no saved model file found - nor output folder - creating it")
     os.makedirs(output)
 
 
 def write_stats(output, best_eval_score, epoch, remaining_patience):
-    to_store = {'best_dev_metric': best_eval_score, 'epoch': epoch,
-                'remaining_patience': remaining_patience,
-                'mlflow_run_id': mlflow.active_run().info.run_id}
-    with open(os.path.join(output, STAT_FILE_NAME), 'w') as stream:
+    to_store = {
+        "best_dev_metric": best_eval_score,
+        "epoch": epoch,
+        "remaining_patience": remaining_patience,
+        "mlflow_run_id": mlflow.active_run().info.run_id,
+    }
+    with open(os.path.join(output, STAT_FILE_NAME), "w") as stream:
         dump(to_store, stream)
 
 
 def load_stats(output):
-    with open(os.path.join(output, STAT_FILE_NAME), 'r') as stream:
+    with open(os.path.join(output, STAT_FILE_NAME), "r") as stream:
         stats = load(stream, Loader=yaml.FullLoader)
-    return stats['best_dev_metric'], stats['epoch'], stats['remaining_patience'], \
-        stats['mlflow_run_id']
+    return (
+        stats["best_dev_metric"],
+        stats["epoch"],
+        stats["remaining_patience"],
+        stats["mlflow_run_id"],
+    )
 
 
-def train(model, optimizer, loss_fun, train_loader, valid_loaders, test_loaders, patience, output,
-          max_epoch, use_progress_bar=True, start_from_scratch=False):
+def train(
+    model,
+    optimizer,
+    loss_fun,
+    train_loader,
+    valid_loaders,
+    test_loaders,
+    patience,
+    output,
+    max_epoch,
+    use_progress_bar=True,
+    start_from_scratch=False,
+):
 
     try:
         best_dev_metric = train_impl(
-            train_loader, valid_loaders, test_loaders, loss_fun, max_epoch, model, optimizer, output,
-            patience, use_progress_bar, start_from_scratch)
+            train_loader,
+            valid_loaders,
+            test_loaders,
+            loss_fun,
+            max_epoch,
+            model,
+            optimizer,
+            output,
+            patience,
+            use_progress_bar,
+            start_from_scratch,
+        )
     except RuntimeError as err:
-        if orion.client.IS_ORION_ON and 'CUDA out of memory' in str(err):
+        if orion.client.IS_ORION_ON and "CUDA out of memory" in str(err):
             logger.error(err)
-            logger.error('model was out of memory - assigning a bad score to tell Orion to avoid'
-                         'too big model')
+            logger.error(
+                "model was out of memory - assigning a bad score to tell Orion to avoid"
+                "too big model"
+            )
             best_dev_metric = -999
         else:
             raise err
@@ -85,12 +119,24 @@ def train(model, optimizer, loss_fun, train_loader, valid_loaders, test_loaders,
     #      value=-float(best_dev_metric))])
 
 
-def train_impl(train_loader, valid_loaders, test_loaders, loss_fun, max_epoch, model, optimizer, output, patience,
-               use_progress_bar, start_from_scratch=False):
+def train_impl(
+    train_loader,
+    valid_loaders,
+    test_loaders,
+    loss_fun,
+    max_epoch,
+    model,
+    optimizer,
+    output,
+    patience,
+    use_progress_bar,
+    start_from_scratch=False,
+):
 
     if use_progress_bar:
         pb = tqdm.tqdm
     else:
+
         def pb(x, total):
             return x
 
@@ -104,22 +150,27 @@ def train_impl(train_loader, valid_loaders, test_loaders, loss_fun, max_epoch, m
 
     if remaining_patience <= 0:
         logger.warning(
-            'remaining patience is zero - not training (and returning best dev score {})'.format(
-                best_dev_metric))
+            "remaining patience is zero - not training (and returning best dev score {})".format(
+                best_dev_metric
+            )
+        )
         return best_dev_metric
     if start_epoch >= max_epoch:
         logger.warning(
-            'start epoch {} > max epoch {} - not training (and returning best dev score '
-            '{})'.format(start_epoch, max_epoch, best_dev_metric))
+            "start epoch {} > max epoch {} - not training (and returning best dev score "
+            "{})".format(start_epoch, max_epoch, best_dev_metric)
+        )
         return best_dev_metric
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
     for epoch in range(start_epoch, max_epoch):
 
         start = time.time()
         # train
-        n_passes = 1  # sample each patient randomly n times in each epoch before validation
+        n_passes = (
+            1  # sample each patient randomly n times in each epoch before validation
+        )
         train_cumulative_loss = 0.0
         train_cumulative_acc = 0.0
         train_cumulative_conf_mat = np.zeros((2, 2))
@@ -148,37 +199,48 @@ def train_impl(train_loader, valid_loaders, test_loaders, loss_fun, max_epoch, m
         train_end = time.time()
         avg_train_loss = train_cumulative_loss / examples
         avg_train_acc = train_cumulative_acc / train_steps
-        logger.info("Confidence matrix for train: \n {}".format(train_cumulative_conf_mat))
+        logger.info(
+            "Confidence matrix for train: \n {}".format(train_cumulative_conf_mat)
+        )
         log_metric("train_loss", avg_train_loss, step=epoch)
         log_metric("train_acc", avg_train_acc, step=epoch)
 
         # Validation
         model.eval()
-        validation_results = evaluate_loaders(valid_loaders, model, loss_fun, device, pb)
+        validation_results = evaluate_loaders(
+            valid_loaders, model, loss_fun, device, pb
+        )
 
-        logger.info("Confidence matrix on every validation spectrum: \n {}".format(validation_results['conf_mat_spectrums']))
-        logger.info("Confidence matrix per validation patient: \n {}".format(validation_results['conf_mat_patients']))
+        logger.info(
+            "Confidence matrix on every validation spectrum: \n {}".format(
+                validation_results["conf_mat_spectrums"]
+            )
+        )
+        logger.info(
+            "Confidence matrix per validation patient: \n {}".format(
+                validation_results["conf_mat_patients"]
+            )
+        )
         #  logger.info()
 
-        log_metric("dev_loss", validation_results['avg_loss'], step=epoch)
-        log_metric("dev_acc", validation_results['avg_acc'], step=epoch)
+        log_metric("dev_loss", validation_results["avg_loss"], step=epoch)
+        log_metric("dev_acc", validation_results["avg_acc"], step=epoch)
         #  dev_end = time.time()
         torch.save(model.state_dict(), os.path.join(output, LAST_MODEL_NAME))
 
-        avg_dev_acc = validation_results['avg_acc']
-        avg_dev_loss = validation_results['avg_loss']
+        avg_dev_acc = validation_results["avg_acc"]
+        avg_dev_loss = validation_results["avg_loss"]
         if best_dev_metric is None or avg_dev_acc > best_dev_metric:
             best_dev_metric = avg_dev_acc
             remaining_patience = patience
             torch.save(model.state_dict(), os.path.join(output, BEST_MODEL_NAME))
             #  logger.info()
-            logger.info('New best model, saving results.\n')
+            logger.info("New best model, saving results.\n")
         else:
             remaining_patience -= 1
 
         logger.info(
-            'done #epoch {:3} => loss {:5.3f}, acc {:5.3f}- dev loss {:3.4f} dev-acc {:5.3f}, (will try for {} more epoch) - '
-            .format(
+            "done #epoch {:3} => loss {:5.3f}, acc {:5.3f}- dev loss {:3.4f} dev-acc {:5.3f}, (will try for {} more epoch) - ".format(
                 epoch,
                 avg_train_loss,
                 avg_train_acc,
@@ -192,19 +254,30 @@ def train_impl(train_loader, valid_loaders, test_loaders, loss_fun, max_epoch, m
         log_metric("best_dev_metric", best_dev_metric)
 
         if remaining_patience <= 0:
-            logger.info('done! best dev metric is {}'.format(best_dev_metric))
+            logger.info("done! best dev metric is {}".format(best_dev_metric))
             break
-    logger.info('training completed (epoch done {} - max epoch {})'.format(epoch + 1, max_epoch))
-    logger.info('Finished Training')
+    logger.info(
+        "training completed (epoch done {} - max epoch {})".format(epoch + 1, max_epoch)
+    )
+    logger.info("Finished Training")
 
     # Test
-    logger.info('Evaluating on test set:')
+    logger.info("Evaluating on test set:")
     model.eval()
-    test_results = evaluate_loaders(valid_loaders, model, loss_fun, device, pb)
-    logger.info('Evaluating on test set:')
-    logger.info("Confidence matrix on every validation spectrum: \n {}".format(test_results['conf_mat_spectrums']))
-    logger.info("Confidence matrix per validation patient: \n {}".format(test_results['conf_mat_patients']))
-    logger.info('saving results.')
-    np.save(output + '/test_results.npy', test_results)
+    test_results = evaluate_loaders(test_loaders, model, loss_fun, device, pb)
+    logger.info("Evaluating on test set:")
+    logger.info(
+        "Confidence matrix on every validation spectrum: \n {}".format(
+            test_results["conf_mat_spectrums"]
+        )
+    )
+    logger.info(
+        "Confidence matrix per validation patient: \n {}".format(
+            test_results["conf_mat_patients"]
+        )
+    )
+    logger.info("saving results.")
+    np.save(output + "/test_results.npy", test_results)
+    # TODO: fix the save format, use npz?
 
     return best_dev_metric

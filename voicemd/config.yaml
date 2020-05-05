@@ -1,10 +1,10 @@
 # general
 batch_size: 32
 optimizer: sgd
-patience: 20
+patience: 100
 architecture: simplecnn
 in_channels: 1
-max_epoch: 100
+max_epoch: 200
 exp_name: densenet_small_winlen_256
 pretrained: true
 normalize_spectrums: true 
@@ -15,8 +15,4 @@ spec_type: librosa_melspec
 split_type: rand_shuffle
 split_rand_state: 42
 dev_step_size: 64
-
-
-
-# architecture
 size: 10

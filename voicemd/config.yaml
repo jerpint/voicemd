@@ -1,10 +1,10 @@
 # general
 batch_size: 32
 optimizer: sgd
-patience: 500
+patience: 20
 architecture: simplecnn
 in_channels: 1
-max_epoch: 3000
+max_epoch: 100
 exp_name: densenet_small_winlen_256
 pretrained: true
 normalize_spectrums: true 

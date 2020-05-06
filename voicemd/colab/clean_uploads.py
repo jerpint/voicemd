@@ -14,17 +14,12 @@ def re_arrange_files(source='./', destination='./audio_files/'):
         pass
 
     for file in os.listdir(source):
-
         if file.endswith('zip'):
 
             os.mkdir('./temp_folder/')
-
             shutil.move(file, './temp_folder/')
-
             shutil.unpack_archive(f'./temp_folder/{file}', "./temp_folder/", "zip")
-
             os.remove(f"./temp_folder/{file}")
-
             unziped_files = os.listdir('./temp_folder/')
 
             for folder in unziped_files:
@@ -39,4 +34,7 @@ def re_arrange_files(source='./', destination='./audio_files/'):
             shutil.rmtree('./temp_folder/')
 
         elif file.endswith('wav') or file.endswith('mp3'):
+          try:
             shutil.move(source + file, destination)
+          except:
+            pass

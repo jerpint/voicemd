@@ -7,7 +7,7 @@ from voicemd.data.prepare_dataloaders import make_predict_dataloader
 from voicemd.models.model_loader import load_model
 
 
-def make_a_prediction(sound_filepath, config_filepath ='voicemd/config.yaml',
+def make_a_prediction(sound_filepath, config_filepath ='/voicemd/config.yaml',
                       best_model_path='voicemd/output/best_model.pt'):
 
     sound_filename = sound_filepath.split('/')[-1]
@@ -23,11 +23,12 @@ def make_a_prediction(sound_filepath, config_filepath ='voicemd/config.yaml',
 
     all_probs = []
 
-    for data in tqdm(predict_dataloader):
+    model.to(device)
 
+    for data in tqdm(predict_dataloader):
         pred = model(data.to(device))
         probs = torch.nn.functional.softmax(pred, dim=1)
-        all_probs.extend(probs.detach().numpy())
+        all_probs.extend(probs.detach().cpu().numpy())
 
     all_probs = np.array(all_probs)
     avg_prob = np.sum(all_probs, 0) / len(all_probs)

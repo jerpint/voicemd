@@ -46,7 +46,6 @@ class AudioDataset(torch.utils.data.Dataset):
         # This will speed up computation but wont scale if the dataset
         # gets larger
         if self.preprocess:
-            print("Preprocessing spectrograms...")
             self._preprocess_dataset()
 
     def _specgram_from_uid(self, uid):
@@ -108,14 +107,16 @@ class EvalDataset(AudioDataset):
         uid = self.metadata.index[0]
 
         #TODO: Update this
-        return self.specs[uid].shape[2] // self.window_len
+        return (self.specs[uid].shape[2] - self.window_len) // self.dev_step_size
 
     def __getitem__(self, idx):
 
         # Pick a random valid index to sample at
-        # Sample a spectrum at random from the entire spectrum
         uid = self.metadata.index[0]
-        spec = self.specs[uid][..., idx:idx+self.window_len]
+
+        # Sample a spectrogram at every dev_step_size, equivalent to hop length
+        idx_spec = idx*self.dev_step_size
+        spec = self.specs[uid][..., idx_spec:idx_spec+self.window_len]
 
         # Expand on dims if necessary (for a model architecture expecting e.g. rbg)
         if self.in_channels != 1:

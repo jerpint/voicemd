@@ -71,44 +71,48 @@ def load_data(args, hyper_params):
         in_channels=hyper_params['in_channels'],
         preprocess=True,
         normalize=hyper_params['normalize_spectrums'],
-
-    )
-
-    valid_data = TrainDataset(
-        valid_metadata,
-        voice_clips_dir=args.data,
-        spec_type=hyper_params['spec_type'],
-        window_len=hyper_params['window_len'],
-        in_channels=hyper_params['in_channels'],
-        preprocess=True,
-        normalize=hyper_params['normalize_spectrums'],
-    )
-
-    test_data_list = []
-
-    test_data = EvalDataset(
-        test_metadata.iloc[[0]],
-        voice_clips_dir=args.data,
-        spec_type=hyper_params['spec_type'],
-        window_len=hyper_params['window_len'],
-        in_channels=hyper_params['in_channels'],
-        preprocess=True,
-        normalize=hyper_params['normalize_spectrums'],
     )
 
     train_loader = DataLoader(
         train_data, batch_size=hyper_params["batch_size"], shuffle=True
     )
 
-    valid_loader = DataLoader(
-        valid_data, batch_size=hyper_params["batch_size"], shuffle=False
-    )
+    valid_loaders = []
+    for val_idx in range(len(valid_metadata)):
+        valid_data = EvalDataset(
+            valid_metadata.iloc[[val_idx]],
+            voice_clips_dir=args.data,
+            spec_type=hyper_params['spec_type'],
+            window_len=hyper_params['window_len'],
+            in_channels=hyper_params['in_channels'],
+            preprocess=True,
+            normalize=hyper_params['normalize_spectrums'],
+            dev_step_size=hyper_params['dev_step_size']
+        )
+        valid_loaders.append(DataLoader(
+                valid_data, batch_size=hyper_params["batch_size"], shuffle=False
+            )
+        )
 
-    test_loader = DataLoader(
-        test_data, batch_size=hyper_params["batch_size"], shuffle=False
-    )
+    test_loaders = []
+    for idx in range(len(test_metadata)):
+        test_data = EvalDataset(
+            test_metadata.iloc[[idx]],
+            voice_clips_dir=args.data,
+            spec_type=hyper_params['spec_type'],
+            window_len=hyper_params['window_len'],
+            in_channels=hyper_params['in_channels'],
+            preprocess=True,
+            normalize=hyper_params['normalize_spectrums'],
+        )
 
-    return train_loader, valid_loader, test_loader
+        test_loader = DataLoader(
+            test_data, batch_size=hyper_params["batch_size"], shuffle=False
+        )
+
+        test_loaders.append(test_loader)
+
+    return train_loader, valid_loaders, test_loaders
 
 
 def make_predict_dataloader(sound_filename, hyper_params):

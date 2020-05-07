@@ -5,6 +5,7 @@ from torch import optim
 from voicemd.models.my_model import MyModel
 from voicemd.models.densenet import densenet121, densenet_small
 from voicemd.models.simple_cnn import SimpleCNN
+from voicemd.models.long_filter_cnn import LongFilterCNN
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,9 @@ def load_model(hyper_params):
 
     elif architecture == 'simplecnn':
         model_class = SimpleCNN
+
+    elif architecture == 'longfilter':
+        model_class = LongFilterCNN
 
     else:
         raise ValueError('architecture {} not supported'.format(architecture))

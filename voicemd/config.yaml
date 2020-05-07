@@ -2,7 +2,7 @@
 batch_size: 32
 optimizer: sgd
 patience: 100
-architecture: simplecnn
+architecture: longfilter
 in_channels: 1
 max_epoch: 200
 exp_name: densenet_small_winlen_256

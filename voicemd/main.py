@@ -9,7 +9,7 @@ import mlflow
 import yaml
 from yaml import load
 
-from voicemd.data.prepare_dataloaders import load_data
+from voicemd.data.prepare_dataloaders import get_loaders, get_metadata_splits
 from voicemd.train import train, load_stats, STAT_FILE_NAME
 from voicemd.utils.hp_utils import check_and_log_hp
 from voicemd.models.model_loader import load_model
@@ -101,28 +101,27 @@ def run(args, hyper_params):
         hyper_params,
     )
 
-    train_loader, valid_loaders, test_loaders = load_data(args, hyper_params)
-    model = load_model(hyper_params)
-    optimizer = load_optimizer(hyper_params, model)
-    loss_fun = load_loss(hyper_params, train_loader)
 
-    train(
-        model,
-        optimizer,
-        loss_fun,
-        train_loader,
-        valid_loaders,
-        test_loaders,
-        hyper_params["patience"],
-        args.output,
-        max_epoch=hyper_params["max_epoch"],
-        use_progress_bar=not args.disable_progressbar,
-        start_from_scratch=args.start_from_scratch,
-    )
+    for split in range(hyper_params['n_splits']):
+        train_metadata, valid_metadata, test_metadata = get_metadata_splits(args, hyper_params, split)
+        train_loader, valid_loaders, test_loaders = get_loaders(args, hyper_params, train_metadata, valid_metadata, test_metadata)
+        model = load_model(hyper_params)
+        optimizer = load_optimizer(hyper_params, model)
+        loss_fun = load_loss(hyper_params, train_loader)
 
-    # TODO: Eval on test set
-    # eval(best_model, loss_fun, test_loaders)
-
+        train(
+            model,
+            optimizer,
+            loss_fun,
+            train_loader,
+            valid_loaders,
+            test_loaders,
+            hyper_params["patience"],
+            args.output,
+            max_epoch=hyper_params["max_epoch"],
+            use_progress_bar=not args.disable_progressbar,
+            start_from_scratch=args.start_from_scratch,
+        )
 
 if __name__ == "__main__":
     main()

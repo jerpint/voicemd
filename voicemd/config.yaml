@@ -12,7 +12,10 @@ learning_rate: 0.01
 window_len: 256
 debug: false
 spec_type: librosa_melspec
-split_type: rand_shuffle
-split_rand_state: 42
 dev_step_size: 64
 size: 10
+
+# Metadata splits
+split_rand_state: 42
+split_type: shuffled_kfold
+n_splits: 10

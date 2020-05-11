@@ -4,6 +4,7 @@ import os
 import mlflow
 import orion
 import yaml
+import pickle
 import time
 import torch
 import tqdm
@@ -224,7 +225,6 @@ def train_impl(
 
         log_metric("dev_loss", validation_results["avg_loss"], step=epoch)
         log_metric("dev_acc", validation_results["avg_acc"], step=epoch)
-        #  dev_end = time.time()
         torch.save(model.state_dict(), os.path.join(output, LAST_MODEL_NAME))
 
         avg_dev_acc = validation_results["avg_acc"]
@@ -260,23 +260,23 @@ def train_impl(
     )
     logger.info("Finished Training")
 
-    # Test
+    # Evaluate on test set
     logger.info("Evaluating on test set:")
+    model.load_state_dict(torch.load(output + '/' + BEST_MODEL_NAME))  # load the best model
     model.eval()
     test_results = evaluate_loaders(test_loaders, model, loss_fun, device, pb)
-    logger.info("Evaluating on test set:")
     logger.info(
-        "Confidence matrix on every validation spectrum: \n {}".format(
+        "Confidence matrix on every test spectrum: \n {}".format(
             test_results["conf_mat_spectrums"]
         )
     )
     logger.info(
-        "Confidence matrix per validation patient: \n {}".format(
+        "Confidence matrix per test patient: \n {}".format(
             test_results["conf_mat_patients"]
         )
     )
     logger.info("saving results.")
-    np.save(output + "/test_results.npy", test_results)
-    # TODO: fix the save format, use npz?
+    with open(output + '/test_results.pkl', 'wb') as out:
+        pickle.dump(test_results, out)
 
     return best_dev_metric

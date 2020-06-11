@@ -102,7 +102,7 @@ def run(args, hyper_params):
     )
 
 
-    for split in range(hyper_params['n_splits']):
+    for split_number, split in enumerate(range(hyper_params['n_splits'])):
         train_metadata, valid_metadata, test_metadata = get_metadata_splits(args, hyper_params, split)
         train_loader, valid_loaders, test_loaders = get_loaders(args, hyper_params, train_metadata, valid_metadata, test_metadata)
         model = load_model(hyper_params)
@@ -119,6 +119,7 @@ def run(args, hyper_params):
             hyper_params["patience"],
             args.output,
             max_epoch=hyper_params["max_epoch"],
+            split_number=split_number,
             use_progress_bar=not args.disable_progressbar,
             start_from_scratch=args.start_from_scratch,
         )

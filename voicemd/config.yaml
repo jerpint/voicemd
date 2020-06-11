@@ -1,7 +1,7 @@
 # general
 batch_size: 32
 optimizer: sgd
-patience: 100
+patience: 30
 architecture: longfilter
 in_channels: 1
 max_epoch: 200
@@ -12,7 +12,7 @@ learning_rate: 0.01
 window_len: 256
 debug: false
 spec_type: librosa_melspec
-dev_step_size: 64
+dev_step_size: 32
 size: 10
 
 # Metadata splits

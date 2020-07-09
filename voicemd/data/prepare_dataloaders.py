@@ -4,9 +4,7 @@ from voicemd.data.dataloaders import TrainDataset, EvalDataset, PredictDataset
 
 
 def load_metadata(args, hyper_params):
-    fname = args.data + "cleaned_metadata.csv"
-    metadata = pd.read_csv(fname)
-    metadata = metadata.drop(columns=['Unnamed: 0'])
+    metadata = pd.read_csv(hyper_params['metadata_fname'])
     metadata = metadata.set_index('uid')
     metadata = metadata[metadata["filename"].notna()]
     return metadata

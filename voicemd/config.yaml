@@ -1,10 +1,10 @@
 # general
 batch_size: 32
 optimizer: sgd
-patience: 30
+patience: 50
 architecture: longfilter
 in_channels: 1
-max_epoch: 200
+max_epoch: 300
 exp_name: densenet_small_winlen_256
 pretrained: true
 normalize_spectrums: true 

@@ -134,6 +134,7 @@ def train_impl(
     split_number,
     use_progress_bar,
     start_from_scratch=False,
+    use_scheduler=True,
 ):
 
     if use_progress_bar:
@@ -166,6 +167,9 @@ def train_impl(
         return best_dev_metric
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model.to(device)
+
+    if use_scheduler:
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.5)
 
     for epoch in range(start_epoch, max_epoch):
 
@@ -213,6 +217,9 @@ def train_impl(
         validation_results = evaluate_loaders(
             valid_loaders, model, loss_fun, device, pb
         )
+
+        if use_scheduler:
+            scheduler.step()
 
         logger.info(
             "Confidence matrix on every validation spectrum: \n {}".format(

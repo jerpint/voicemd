@@ -14,13 +14,13 @@ class LongFilterCNN(nn.Module):
         super(LongFilterCNN, self).__init__()
         self.hyper_params = hyper_params
         self.conv2d = nn.Sequential(
-            nn.Conv2d(1, 32, (80, 3), 1),
+            nn.Conv2d(1, 64, (80, 3), 1),
             nn.ReLU(),
         )
 
         self.conv1d = nn.Sequential(
-            nn.Conv1d(32, 32, 3, 1),
-            nn.Conv1d(32, 32, 3, 1),
+            nn.Conv1d(64, 64, 3, 1),
+            nn.Conv1d(64, 32, 3, 1),
             nn.ReLU(),
             nn.MaxPool1d(2),
             nn.Conv1d(32, 32, 3, 1),

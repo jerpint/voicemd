@@ -4,15 +4,13 @@ from voicemd.data.dataloaders import TrainDataset, EvalDataset, PredictDataset
 
 
 def load_metadata(args, hyper_params):
-    fname = args.data + "cleaned_metadata.csv"
-    metadata = pd.read_csv(fname)
-    metadata = metadata.drop(columns=['Unnamed: 0'])
+    metadata = pd.read_csv(hyper_params['metadata_fname'])
     metadata = metadata.set_index('uid')
     metadata = metadata[metadata["filename"].notna()]
     return metadata
 
 
-def get_metadata_splits(args, hyper_params):
+def get_metadata_splits(args, hyper_params, split):
 
     metadata = load_metadata(args, hyper_params)
 
@@ -52,16 +50,36 @@ def get_metadata_splits(args, hyper_params):
         valid_metadata = shuffled_metadata.iloc[0:32]
         test_metadata = shuffled_metadata.iloc[0:32]
 
+
+    elif hyper_params['split_type'] == 'shuffled_kfold':
+
+        from sklearn.model_selection import KFold
+        percent_train = 0.9
+
+        shuffled_metadata = metadata.sample(n=len(metadata), random_state=hyper_params['split_rand_state'])
+        kf = KFold(n_splits=hyper_params['n_splits'])
+        for split_idx, (train_val_index, test_index) in enumerate(kf.split(shuffled_metadata)):
+
+            if split == split_idx:
+                break
+
+
+        train_index = train_val_index[0:(round(len(train_val_index)*percent_train))]
+        valid_index = train_val_index[(round(len(train_val_index)*percent_train)):]
+
+        train_metadata = shuffled_metadata.iloc[train_index]
+        valid_metadata = shuffled_metadata.iloc[valid_index]
+        test_metadata = shuffled_metadata.iloc[test_index]
+
     else:
         raise NotImplementedError("split_type not defined")
 
     return train_metadata, valid_metadata, test_metadata
 
 
-def load_data(args, hyper_params):
+def get_loaders(args, hyper_params, train_metadata, valid_metadata, test_metadata):
     # TODO: Add splits for validation
 
-    train_metadata, valid_metadata, test_metadata = get_metadata_splits(args, hyper_params)
 
     train_data = TrainDataset(
         train_metadata,

@@ -82,6 +82,7 @@ def train(
     patience,
     output,
     max_epoch,
+    split_number,
     use_progress_bar=True,
     start_from_scratch=False,
 ):
@@ -97,6 +98,7 @@ def train(
             optimizer,
             output,
             patience,
+            split_number,
             use_progress_bar,
             start_from_scratch,
         )
@@ -129,8 +131,10 @@ def train_impl(
     optimizer,
     output,
     patience,
+    split_number,
     use_progress_bar,
     start_from_scratch=False,
+    use_scheduler=True,
 ):
 
     if use_progress_bar:
@@ -163,6 +167,9 @@ def train_impl(
         return best_dev_metric
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model.to(device)
+
+    if use_scheduler:
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.5)
 
     for epoch in range(start_epoch, max_epoch):
 
@@ -211,6 +218,9 @@ def train_impl(
             valid_loaders, model, loss_fun, device, pb
         )
 
+        if use_scheduler:
+            scheduler.step()
+
         logger.info(
             "Confidence matrix on every validation spectrum: \n {}".format(
                 validation_results["conf_mat_spectrums"]
@@ -232,7 +242,8 @@ def train_impl(
         if best_dev_metric is None or avg_dev_acc > best_dev_metric:
             best_dev_metric = avg_dev_acc
             remaining_patience = patience
-            torch.save(model.state_dict(), os.path.join(output, BEST_MODEL_NAME))
+            best_model_split_name = BEST_MODEL_NAME + '_split_' + str(split_number)
+            torch.save(model.state_dict(), os.path.join(output, best_model_split_name))
             #  logger.info()
             logger.info("New best model, saving results.\n")
         else:
@@ -262,7 +273,7 @@ def train_impl(
 
     # Evaluate on test set
     logger.info("Evaluating on test set:")
-    model.load_state_dict(torch.load(output + '/' + BEST_MODEL_NAME))  # load the best model
+    model.load_state_dict(torch.load(output + '/' + best_model_split_name))  # load the best model
     model.eval()
     test_results = evaluate_loaders(test_loaders, model, loss_fun, device, pb)
     logger.info(
@@ -276,7 +287,7 @@ def train_impl(
         )
     )
     logger.info("saving results.")
-    with open(output + '/test_results.pkl', 'wb') as out:
+    with open(output + '/test_results_split_' + str(split_number) + '.pkl', 'wb') as out:
         pickle.dump(test_results, out)
 
     return best_dev_metric

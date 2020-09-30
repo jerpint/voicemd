@@ -75,6 +75,7 @@ class AudioDataset(torch.utils.data.Dataset):
         fig.colorbar(cax)
         plt.title('Spectrogram')
         plt.show()
+        return fig, ax
 
 
 class TrainDataset(AudioDataset):

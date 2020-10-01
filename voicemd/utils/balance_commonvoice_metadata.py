@@ -1,18 +1,27 @@
+import argparse
+
 import pandas as pd
 
 
-def balance_and_filter_commonvoice_tsv(tsv, split, seed=42):
-    """
+def balance_and_filter_commonvoice_tsv(tsv_fname, split, seed=42):
+    """Balance and filter commonvoice_tsv.
 
-    We remove entries with no associated gender.
-    There is a big bias towards males in twenties.
-    We sample and rebalance the train dataset such that there are
+    We remove entries with no associated gender for all splits.
+    We sample and rebalance the train split such that there are
     equal samples across males and females for all age categoires
     in valid_age_categories.
+
+    Args:
+        tsv_fname: (str) full path to the tsv file
+        split: (str) can be e.g 'train', 'dev', 'test'
+        seed: (int) for reproducibility
+
+    Returns:
+        metadata: (pd.Dataframe) containing the processed metadata
     """
 
+    tsv = pd.read_csv(tsv_fname, sep="\t")
     metadata = tsv.copy()
-    metadata.rename(columns={"path": "filename"}, inplace=True)
 
     # show stats before rebalancing
     print("Breakdown before rebalance: \n")
@@ -23,7 +32,7 @@ def balance_and_filter_commonvoice_tsv(tsv, split, seed=42):
         print(split + " not rebalanced")
         return metadata
 
-    # final samples will be stored here
+    # resulting samples will be stored here
     male_metadata = pd.DataFrame(columns=metadata.columns)
     female_metadata = pd.DataFrame(columns=metadata.columns)
 
@@ -75,13 +84,18 @@ def print_metadata_stats(metadata):
 
 
 if __name__ == "__main__":
-    commonvoice_path = "/data/mozilla/"
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--commonvoice_path", help="path to commonvoice dataset", required=True
+    )
+    args = parser.parse_args()
+
     splits = ["train", "dev", "test"]
 
     for split in splits:
-        print(50 * "=")
-        tsv_fname = commonvoice_path + split + ".tsv"
-        tsv = pd.read_csv(tsv_fname, sep="\t")
+        tsv_fname = args.commonvoice_path + split + ".tsv"
         print("reading ", tsv_fname)
-        metadata = balance_and_filter_commonvoice_tsv(tsv, split)
-        metadata.to_csv(commonvoice_path + "cv_" + split + "_metadata.csv")
+        metadata = balance_and_filter_commonvoice_tsv(tsv_fname, split)
+        metadata_fname = args.commonvoice_path + "cv_" + split + "_metadata.csv"
+        metadata.to_csv(metadata_fname)
+        print("saved to: ", metadata_fname)

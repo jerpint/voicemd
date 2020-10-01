@@ -1,4 +1,5 @@
 import argparse
+import os
 
 import pandas as pd
 
@@ -93,9 +94,9 @@ if __name__ == "__main__":
     splits = ["train", "dev", "test"]
 
     for split in splits:
-        tsv_fname = args.commonvoice_path + split + ".tsv"
+        tsv_fname = os.path.join(args.commonvoice_path, split + ".tsv")
         print("reading ", tsv_fname)
         metadata = balance_and_filter_commonvoice_tsv(tsv_fname, split)
-        metadata_fname = args.commonvoice_path + "cv_" + split + "_metadata.csv"
+        metadata_fname = os.path.join(args.commonvoice_path, "cv_" + split + "_metadata.csv")
         metadata.to_csv(metadata_fname)
         print("saved to: ", metadata_fname)

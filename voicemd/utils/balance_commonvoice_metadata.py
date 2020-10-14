@@ -33,12 +33,15 @@ def balance_and_filter_commonvoice_tsv(tsv_fname, split, seed=42):
         print(split + " not rebalanced")
         return metadata
 
-    # resulting samples will be stored here
-    male_metadata = pd.DataFrame(columns=metadata.columns)
-    female_metadata = pd.DataFrame(columns=metadata.columns)
+    # Keep at most 3 samples per unique person
+    metadata = metadata.groupby(["client_id"]).apply(lambda grp: grp.sample(n=min(3, len(grp)), random_state=42))
 
     # remove samples where gender is unidentified
     metadata = metadata[metadata["gender"].isin(["male", "female"])]
+
+    # resulting samples will be stored here
+    male_metadata = pd.DataFrame(columns=metadata.columns)
+    female_metadata = pd.DataFrame(columns=metadata.columns)
 
     # keep only valid age categories
     valid_age_categories = ["twenties", "thirties", "fourties", "fifties", "sixties"]
@@ -58,10 +61,12 @@ def balance_and_filter_commonvoice_tsv(tsv_fname, split, seed=42):
 
         # sample and add to all results
         male_metadata = male_metadata.append(
-            tmp_male_metadata.sample(n=n_samples, random_state=seed)
+            tmp_male_metadata.sample(n=n_samples, random_state=seed),
+            ignore_index=True,
         )
         female_metadata = female_metadata.append(
-            tmp_female_metadata.sample(n=n_samples, random_state=seed)
+            tmp_female_metadata.sample(n=n_samples, random_state=seed),
+            ignore_index=True,
         )
 
     metadata = male_metadata.append(female_metadata)
@@ -98,5 +103,5 @@ if __name__ == "__main__":
         print("reading ", tsv_fname)
         metadata = balance_and_filter_commonvoice_tsv(tsv_fname, split)
         metadata_fname = os.path.join(args.commonvoice_path, "cv_" + split + "_metadata.csv")
-        metadata.to_csv(metadata_fname)
+        metadata.to_csv(metadata_fname, index=False)
         print("saved to: ", metadata_fname)

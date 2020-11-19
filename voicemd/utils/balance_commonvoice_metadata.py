@@ -1,7 +1,34 @@
 import argparse
+import shutil
 import os
 
 import pandas as pd
+
+def copy_subset(metadata, cv_path, subset_path):
+    '''
+    cv_path: path where the original dataset is stored
+    subset_path: path where the new subset dataset will be saved
+    metadata: pd.DataFrame, metadata to copy from cv_path to subset_path
+    '''
+
+    for row, sample in metadata.iterrows():
+        src = os.path.join(cv_path, 'clips', sample['path'])
+        dest = os.path.join(subset_path, 'clips')
+        shutil.copy(src, dest)
+    metadata.to_csv(os.path.join(subset_path, 'cv_metadata_balanced.csv'))
+
+
+def adapt_metadata(subset_path):
+    '''Adapt metadata file to match previous dataset'''
+    df = pd.read_csv(os.path.join(subset_path, 'cv_metadata_balanced.csv'))
+    df["gender"] = df["gender"].replace("female", "F")
+    df["gender"] = df["gender"].replace("male", "M")
+
+    df = df.rename(columns={"path": "filename"})
+
+    df["uid"] = df["filename"]
+    df.to_csv(os.path.join(subset_path, 'cv_metadata_balanced_clean.csv'))
+
 
 
 def balance_and_filter_commonvoice_tsv(tsv_fname, split, seed=42):
@@ -94,14 +121,17 @@ if __name__ == "__main__":
     parser.add_argument(
         "--commonvoice_path", help="path to commonvoice dataset", required=True
     )
+    parser.add_argument(
+        "--subset_dir", help="path to folder to store balanced dataset", required=True
+    )
     args = parser.parse_args()
 
-    splits = ["train", "dev", "test"]
+    # We will only use and balance the train split
+    splits = ["train"]
 
     for split in splits:
         tsv_fname = os.path.join(args.commonvoice_path, split + ".tsv")
         print("reading ", tsv_fname)
         metadata = balance_and_filter_commonvoice_tsv(tsv_fname, split)
-        metadata_fname = os.path.join(args.commonvoice_path, "cv_" + split + "_metadata.csv")
-        metadata.to_csv(metadata_fname, index=False)
-        print("saved to: ", metadata_fname)
+        copy_subset(metadata, args.commonvoice_path, args.subset_dir)
+        adapt_metadata(metadata)

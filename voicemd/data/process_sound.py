@@ -42,7 +42,7 @@ def load_waveform(fname):
 
     # loop the sound to make the segment long enough
     min_seconds = 5
-    if len(waveform) / sr < min_seconds:
+    while (len(waveform) / sr) < min_seconds:
         waveform = np.concatenate((waveform, waveform))
 
     return waveform, sr

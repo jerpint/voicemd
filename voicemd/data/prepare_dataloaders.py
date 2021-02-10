@@ -1,7 +1,12 @@
+import logging
+
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader
+from tqdm import tqdm
+
 from voicemd.data.dataloaders import TrainDataset, EvalDataset, PredictDataset
 
+logger = logging.getLogger(__name__)
 
 def load_metadata(args, hyper_params):
     metadata = pd.read_csv(hyper_params['metadata_fname'])
@@ -81,6 +86,7 @@ def get_loaders(args, hyper_params, train_metadata, valid_metadata, test_metadat
     # TODO: Add splits for validation
 
 
+    logger.info("Preparing train soundfiles...")
     train_data = TrainDataset(
         train_metadata,
         voice_clips_dir=args.data,
@@ -89,6 +95,7 @@ def get_loaders(args, hyper_params, train_metadata, valid_metadata, test_metadat
         in_channels=hyper_params['in_channels'],
         preprocess=True,
         normalize=hyper_params['normalize_spectrums'],
+        split='train',
     )
 
     train_loader = DataLoader(
@@ -96,7 +103,8 @@ def get_loaders(args, hyper_params, train_metadata, valid_metadata, test_metadat
     )
 
     valid_loaders = []
-    for val_idx in range(len(valid_metadata)):
+    logger.info("Preparing validation soundfiles...")
+    for val_idx in tqdm(range(len(valid_metadata))):
         valid_data = EvalDataset(
             valid_metadata.iloc[[val_idx]],
             voice_clips_dir=args.data,
@@ -105,7 +113,8 @@ def get_loaders(args, hyper_params, train_metadata, valid_metadata, test_metadat
             in_channels=hyper_params['in_channels'],
             preprocess=True,
             normalize=hyper_params['normalize_spectrums'],
-            dev_step_size=hyper_params['dev_step_size']
+            dev_step_size=hyper_params['dev_step_size'],
+            split='valid',
         )
         valid_loaders.append(DataLoader(
                 valid_data, batch_size=hyper_params["batch_size"], shuffle=False
@@ -122,6 +131,7 @@ def get_loaders(args, hyper_params, train_metadata, valid_metadata, test_metadat
             in_channels=hyper_params['in_channels'],
             preprocess=True,
             normalize=hyper_params['normalize_spectrums'],
+            split='test',
         )
 
         test_loader = DataLoader(

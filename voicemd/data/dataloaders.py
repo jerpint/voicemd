@@ -1,11 +1,14 @@
+import logging
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+from tqdm import tqdm
 import torch
 
 from voicemd.data.process_sound import compute_specgram, load_waveform
 
+logger = logging.getLogger(__name__)
 
 class AudioDataset(torch.utils.data.Dataset):
     """Voice recordings dataset."""
@@ -20,7 +23,9 @@ class AudioDataset(torch.utils.data.Dataset):
                  preprocess=False,
                  dev=False,
                  dev_step_size=64,
-                 transform=None):
+                 transform=None,
+                 split=None,
+                ):
         """
         Args:
             csv_file (string): Path to the csv file with annotations.
@@ -38,6 +43,7 @@ class AudioDataset(torch.utils.data.Dataset):
         self.dev_step_size = dev_step_size
         self.normalize = normalize
         self.preprocess = preprocess
+        self.split = split
 
         self._compute_specgram = compute_specgram
         self._load_waveform = load_waveform
@@ -61,8 +67,14 @@ class AudioDataset(torch.utils.data.Dataset):
 
     def _preprocess_dataset(self):
         '''Cache the dataset in RAM'''
+
+        # disable tqdm output for validation and test sets, False when train
+        disable_tqdm = not(self.split == 'train')
         self.specs = {
-            uid: self._specgram_from_uid(uid) for uid in self.metadata.index
+            uid: self._specgram_from_uid(uid) for uid in tqdm(
+                self.metadata.index,
+                disable=disable_tqdm
+            )
         }
 
         self.labels = {uid: self.metadata.loc[uid] for uid in self.metadata.index}
@@ -112,7 +124,6 @@ class EvalDataset(AudioDataset):
 
     def __getitem__(self, idx):
 
-        # Pick a random valid index to sample at
         uid = self.metadata.index[0]
 
         # Sample a spectrogram at every dev_step_size, equivalent to hop length
@@ -123,9 +134,9 @@ class EvalDataset(AudioDataset):
         if self.in_channels != 1:
             spec = spec.expand(self.in_channels, spec.shape[1], spec.shape[2])
 
-        label = float(self.labels[uid]['gender'] == 'M')
+        gender = float(self.labels[uid]['gender'] == 'M')
 
-        return spec, label
+        return spec, gender
 
 
 class PredictDataset(torch.utils.data.Dataset):

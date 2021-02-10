@@ -16,7 +16,7 @@ from voicemd.models.model_loader import load_model
 from voicemd.models.model_loader import load_optimizer
 from voicemd.models.model_loader import load_loss
 from voicemd.utils.logging_utils import LoggerWriter
-from voicemd.analyze_tests import report_all_metrics
+from voicemd.data.analyze_results import report_all_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +126,7 @@ def run(args, hyper_params):
         )
 
     # Report the final metrics in the logs (conf. matrix, accuracy, f1, auc, etc.)
-    report_all_metrics(args.output)
+    report_all_metrics(args.output, hyper_params)
 
 if __name__ == "__main__":
     main()

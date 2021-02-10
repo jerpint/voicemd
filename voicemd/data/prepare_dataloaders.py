@@ -1,6 +1,7 @@
 import logging
 
 import pandas as pd
+from sklearn.model_selection import KFold
 from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 
@@ -49,16 +50,8 @@ def get_metadata_splits(args, hyper_params, split):
         valid_metadata = shuffled_metadata[round(len(shuffled_metadata) * train_percentage):round(len(shuffled_metadata)*(train_percentage + val_percentage))]
         test_metadata = shuffled_metadata[round(len(shuffled_metadata) * (train_percentage + val_percentage)):]
 
-    elif hyper_params['split_type'] == 'debug':
-        shuffled_metadata = metadata.sample(n=len(metadata), random_state=hyper_params['split_rand_state'])
-        train_metadata = shuffled_metadata.iloc[0:32]
-        valid_metadata = shuffled_metadata.iloc[0:32]
-        test_metadata = shuffled_metadata.iloc[0:32]
-
-
     elif hyper_params['split_type'] == 'shuffled_kfold':
 
-        from sklearn.model_selection import KFold
         percent_train = 0.9
 
         shuffled_metadata = metadata.sample(n=len(metadata), random_state=hyper_params['split_rand_state'])

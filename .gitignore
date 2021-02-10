@@ -2,6 +2,15 @@
 mlruns
 examples/*/output/
 
+# Ignore top-level data folder
+data/
+
+# Ignore docs
+docs/
+
+# Ignore results
+voicemd/results
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

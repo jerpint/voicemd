@@ -13,10 +13,10 @@ window_len: 256
 spec_type: librosa_melspec
 dev_step_size: 32
 size: 10
+seed: 42
 
 # Metadata splits
 metadata_fname: '/home/jerpint/Dropbox/voicemd_db/cv_balanced/cv_metadata_balanced_clean.csv'
 # metadata_fname: '../data/voice_clips/cleaned_metadata_filtered_dysphonia.csv'
-split_rand_state: 42
 split_type: shuffled_kfold
 n_splits: 10

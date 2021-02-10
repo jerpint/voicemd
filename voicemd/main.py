@@ -16,6 +16,7 @@ from voicemd.models.model_loader import load_model
 from voicemd.models.model_loader import load_optimizer
 from voicemd.models.model_loader import load_loss
 from voicemd.utils.logging_utils import LoggerWriter
+from voicemd.utils.seeds import set_seeds
 from voicemd.data.analyze_results import report_all_metrics
 
 logger = logging.getLogger(__name__)
@@ -102,6 +103,10 @@ def run(args, hyper_params):
         hyper_params,
     )
 
+    # set seeds if specified in config
+    if hyper_params.get('seed'):
+        logger.info("setting seed")
+        set_seeds(hyper_params['seed'])
 
     for split_number, split in enumerate(range(hyper_params['n_splits'])):
         train_metadata, valid_metadata, test_metadata = get_metadata_splits(args, hyper_params, split)

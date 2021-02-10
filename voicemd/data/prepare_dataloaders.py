@@ -27,20 +27,20 @@ def get_metadata_splits(args, hyper_params, split):
         male_metadata = metadata[metadata['gender'] == 'M']
         female_metadata = metadata[metadata['gender'] == 'F']
 
-        male_metadata_shuffle = male_metadata.sample(n=len(male_metadata), random_state=hyper_params['split_rand_state'])
-        female_metadata_shuffle = female_metadata.sample(n=len(female_metadata), random_state=hyper_params['split_rand_state'])
+        male_metadata_shuffle = male_metadata.sample(n=len(male_metadata), random_state=hyper_params.get('seed'))
+        female_metadata_shuffle = female_metadata.sample(n=len(female_metadata), random_state=hyper_params.get('seed'))
 
         train_metadata = male_metadata_shuffle[0:75].append(female_metadata_shuffle[0:75])
-        train_metadata = train_metadata.sample(n=len(train_metadata), random_state=hyper_params['split_rand_state'])
+        train_metadata = train_metadata.sample(n=len(train_metadata), random_state=hyper_params.get('seed'))
 
         valid_metadata = male_metadata_shuffle[75:100].append(female_metadata_shuffle[75:100])
-        valid_metadata = valid_metadata.sample(n=len(valid_metadata), random_state=hyper_params['split_rand_state'])
+        valid_metadata = valid_metadata.sample(n=len(valid_metadata), random_state=hyper_params.get('seed'))
 
         test_metadata = male_metadata_shuffle[100:].append(female_metadata_shuffle[100:])
-        test_metadata = test_metadata.sample(n=len(test_metadata), random_state=hyper_params['split_rand_state'])
+        test_metadata = test_metadata.sample(n=len(test_metadata), random_state=hyper_params.get('seed'))
 
     elif hyper_params['split_type'] == 'rand_shuffle':
-        shuffled_metadata = metadata.sample(n=len(metadata), random_state=hyper_params['split_rand_state'])
+        shuffled_metadata = metadata.sample(n=len(metadata), random_state=hyper_params.get('seed'))
 
         train_percentage = 0.8
         val_percentage = 0.1
@@ -54,7 +54,7 @@ def get_metadata_splits(args, hyper_params, split):
 
         percent_train = 0.9
 
-        shuffled_metadata = metadata.sample(n=len(metadata), random_state=hyper_params['split_rand_state'])
+        shuffled_metadata = metadata.sample(n=len(metadata), random_state=hyper_params.get('seed'))
         kf = KFold(n_splits=hyper_params['n_splits'])
         for split_idx, (train_val_index, test_index) in enumerate(kf.split(shuffled_metadata)):
 

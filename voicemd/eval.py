@@ -17,6 +17,7 @@ from yaml import load
 
 
 def get_batch_performance_metrics(outputs, model_target):
+    # gender stats
     probs = torch.softmax(outputs, 1).detach().numpy() > 0.5
     preds = np.argmax(probs, 1)
     targs = model_target.detach().numpy()
@@ -74,20 +75,31 @@ def evaluate_loader(loader, model, device, loss_fun):
     examples = 0
     all_probs = []
     for data in loader:
-        model_input, model_target = data
+        model_input, model_targets = data
         with torch.no_grad():
             outputs = model(model_input.to(device))
-            model_target = model_target.type(torch.long)
-            model_target = model_target.to(device)
-            loss = loss_fun(outputs, model_target)
-            cumulative_loss += loss.item()
+            categories = ['gender', 'age']
+            loss = 0
 
-            probs = torch.nn.functional.softmax(outputs, dim=1)
+            for cat in categories:
+                output = outputs[cat]
+                model_target = model_targets[cat]
+                loss_fn = loss_fun[cat]
+
+                model_target = model_target.type(torch.long)
+                model_target = model_target.to(device)
+                loss += loss_fn(output, model_target)
+            #  loss = loss_fun(outputs, model_target)
+            cumulative_loss += loss.item()
+            # TODO: calculate stats on separate categories
+
+            # Gender stats only
+            probs = torch.nn.functional.softmax(outputs['gender'], dim=1)
             all_probs.extend(probs.detach().numpy())
-            acc, conf_mat = get_batch_performance_metrics(outputs, model_target)
+            acc, conf_mat = get_batch_performance_metrics(outputs['gender'], model_targets['gender'])
             cumulative_acc += acc
             cumulative_conf_mat += conf_mat
-        examples += model_target.shape[0]
+        examples += model_targets['gender'].shape[0]
 
     all_probs = np.array(all_probs)
     avg_prob = np.sum(all_probs, 0) / len(all_probs)

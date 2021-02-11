@@ -58,6 +58,7 @@ def load_optimizer(hyper_params, model):
 def load_loss(hyper_params, train_loader=None):
 
     # Use the proportion from train_loader to weigh the loss since it can be unbalanced classes
+    losses = {}
     if train_loader:
         n_male = sum(train_loader.dataset.metadata['gender'] == 'M')
         n_female = sum(train_loader.dataset.metadata['gender'] == 'F')
@@ -69,4 +70,8 @@ def load_loss(hyper_params, train_loader=None):
     else:
         weight = None
 
-    return torch.nn.CrossEntropyLoss(weight=weight)
+    losses['gender'] = torch.nn.CrossEntropyLoss(weight=weight)
+    losses['age'] = torch.nn.CrossEntropyLoss(weight=None)
+
+    return losses
+

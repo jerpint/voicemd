@@ -25,44 +25,44 @@ LAST_MODEL_NAME = "last_model"
 STAT_FILE_NAME = "stats.yaml"
 
 
-def reload_model(output, model_name, model, optimizer, start_from_scratch=False):
-    saved_model = os.path.join(output, model_name)
+def reload_model(output_dir, model_name, model, optimizer, start_from_scratch=False):
+    saved_model = os.path.join(output_dir, model_name)
     if start_from_scratch and os.path.exists(saved_model):
         logger.info(
             'saved model file "{}" already exists - but NOT loading it '
-            "(cause --start_from_scratch)".format(output)
+            "(cause --start_from_scratch)".format(output_dir)
         )
         return
     if os.path.exists(saved_model):
-        logger.info('saved model file "{}" already exists - loading it'.format(output))
+        logger.info('saved model file "{}" already exists - loading it'.format(output_dir))
         model.load_state_dict(torch.load(saved_model))
 
-        stats = load_stats(output)
+        stats = load_stats(output_dir)
         logger.info("model status: {}".format(stats))
         return stats
-    if os.path.exists(output):
+    if os.path.exists(output_dir):
         logger.info(
-            "saved model file not found - but output folder exists already - keeping it"
+            "saved model file not found - but output_dir folder exists already - keeping it"
         )
         return
 
-    logger.info("no saved model file found - nor output folder - creating it")
-    os.makedirs(output)
+    logger.info("no saved model file found - nor output_dir folder - creating it")
+    os.makedirs(output_dir)
 
 
-def write_stats(output, best_eval_score, epoch, remaining_patience):
+def write_stats(output_dir, best_eval_score, epoch, remaining_patience):
     to_store = {
         "best_dev_metric": best_eval_score,
         "epoch": epoch,
         "remaining_patience": remaining_patience,
         "mlflow_run_id": mlflow.active_run().info.run_id,
     }
-    with open(os.path.join(output, STAT_FILE_NAME), "w") as stream:
+    with open(os.path.join(output_dir, STAT_FILE_NAME), "w") as stream:
         dump(to_store, stream)
 
 
-def load_stats(output):
-    with open(os.path.join(output, STAT_FILE_NAME), "r") as stream:
+def load_stats(output_dir):
+    with open(os.path.join(output_dir, STAT_FILE_NAME), "r") as stream:
         stats = load(stream, Loader=yaml.FullLoader)
     return (
         stats["best_dev_metric"],
@@ -80,7 +80,7 @@ def train(
     valid_loaders,
     test_loaders,
     patience,
-    output,
+    output_dir,
     max_epoch,
     split_number,
     use_progress_bar=True,
@@ -96,7 +96,7 @@ def train(
             max_epoch,
             model,
             optimizer,
-            output,
+            output_dir,
             patience,
             split_number,
             use_progress_bar,
@@ -129,7 +129,7 @@ def train_impl(
     max_epoch,
     model,
     optimizer,
-    output,
+    output_dir,
     patience,
     split_number,
     use_progress_bar,
@@ -144,7 +144,7 @@ def train_impl(
         def pb(x, total):
             return x
 
-    stats = reload_model(output, LAST_MODEL_NAME, model, optimizer, start_from_scratch)
+    stats = reload_model(output_dir, LAST_MODEL_NAME, model, optimizer, start_from_scratch)
     if stats is None:
         best_dev_metric = None
         remaining_patience = patience
@@ -186,22 +186,36 @@ def train_impl(
         train_steps = len(train_loader) * n_passes
         for i in pb(range(n_passes), total=n_passes):
             for data in train_loader:
-                model_input, model_target = data
+                model_input, model_targets = data
                 # forward + backward + optimize
                 optimizer.zero_grad()
                 outputs = model(model_input.to(device))
-                model_target = model_target.type(torch.long)
-                model_target = model_target.to(device)
-                loss = loss_fun(outputs, model_target)
+                loss = 0
+
+                categories = ['gender', 'age']
+                #  categories = ['gender'] # , 'age']
+
+                for cat in categories:
+                    output = outputs[cat]
+                    model_target = model_targets[cat]
+                    loss_fn = loss_fun[cat]
+
+                    model_target = model_target.type(torch.long)
+                    model_target = model_target.to(device)
+                    loss += loss_fn(output, model_target)
                 loss.backward()
                 optimizer.step()
 
-                acc, conf_mat = get_batch_performance_metrics(outputs, model_target)
+                # gender stats
+                acc, conf_mat = get_batch_performance_metrics(
+                    outputs['gender'],
+                    model_targets['gender']
+                )
 
                 train_cumulative_loss += loss.item()
                 train_cumulative_acc += acc
                 train_cumulative_conf_mat += conf_mat
-                examples += model_target.shape[0]
+                examples += model_targets['gender'].shape[0]
 
         train_end = time.time()
         avg_train_loss = train_cumulative_loss / examples
@@ -235,7 +249,7 @@ def train_impl(
 
         log_metric("dev_loss", validation_results["avg_loss"], step=epoch)
         log_metric("dev_acc", validation_results["avg_acc"], step=epoch)
-        torch.save(model.state_dict(), os.path.join(output, LAST_MODEL_NAME))
+        torch.save(model.state_dict(), os.path.join(output_dir, LAST_MODEL_NAME))
 
         avg_dev_acc = validation_results["avg_acc"]
         avg_dev_loss = validation_results["avg_loss"]
@@ -243,7 +257,7 @@ def train_impl(
             best_dev_metric = avg_dev_acc
             remaining_patience = patience
             best_model_split_name = BEST_MODEL_NAME + '_split_' + str(split_number)
-            torch.save(model.state_dict(), os.path.join(output, best_model_split_name))
+            torch.save(model.state_dict(), os.path.join(output_dir, best_model_split_name))
             #  logger.info()
             logger.info("New best model, saving results.\n")
         else:
@@ -260,7 +274,7 @@ def train_impl(
             )
         )
 
-        write_stats(output, best_dev_metric, epoch + 1, remaining_patience)
+        write_stats(output_dir, best_dev_metric, epoch + 1, remaining_patience)
         log_metric("best_dev_metric", best_dev_metric)
 
         if remaining_patience <= 0:
@@ -273,7 +287,7 @@ def train_impl(
 
     # Evaluate on test set
     logger.info("Evaluating on test set:")
-    model.load_state_dict(torch.load(output + '/' + best_model_split_name))  # load the best model
+    model.load_state_dict(torch.load(output_dir + '/' + best_model_split_name))  # load the best model
     model.eval()
     test_results = evaluate_loaders(test_loaders, model, loss_fun, device, pb)
     logger.info(
@@ -287,7 +301,7 @@ def train_impl(
         )
     )
     logger.info("saving results.")
-    with open(output + '/test_results_split_' + str(split_number) + '.pkl', 'wb') as out:
+    with open(output_dir + '/test_results_split_' + str(split_number) + '.pkl', 'wb') as out:
         pickle.dump(test_results, out)
 
     return best_dev_metric

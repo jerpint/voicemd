@@ -29,12 +29,19 @@ class LongFilterCNN(nn.Module):
             nn.MaxPool1d(2),
             )
 
-        self.classifier = nn.Sequential(
+        self.gender_classifier = nn.Sequential(
             nn.Linear(1920, 256),
             nn.ReLU(),
             nn.Linear(256, 128),
             nn.ReLU(),
             nn.Linear(128, 2),
+        )
+        self.age_classifier = nn.Sequential(
+            nn.Linear(1920, 256),
+            nn.ReLU(),
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Linear(128, 5),
         )
 
     def forward(self, x):
@@ -43,6 +50,12 @@ class LongFilterCNN(nn.Module):
         x = torch.squeeze(x, dim=2)
         x = self.conv1d(x)
         x = torch.flatten(x, 1)
-        output = self.classifier(x)
+        gender_output = self.gender_classifier(x)
+        age_output = self.age_classifier(x)
 
-        return output
+        outputs = {
+            'gender': gender_output,
+            'age': age_output,
+        }
+
+        return outputs

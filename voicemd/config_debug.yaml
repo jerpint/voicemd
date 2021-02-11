@@ -6,14 +6,17 @@ architecture: longfilter
 in_channels: 1
 max_epoch: 20
 exp_name: densenet_small_winlen_256
-pretrained: true
 normalize_spectrums: true 
 learning_rate: 0.01
 window_len: 256
 spec_type: librosa_melspec
 dev_step_size: 32
-size: 10
 seed: 42
+
+# categories to train on
+categories: 
+  - gender
+  - age
 
 # Metadata splits
 metadata_fname: '/home/jerpint/Dropbox/voicemd_db/cv_balanced/cv_metadata_balanced_debug.csv'

@@ -116,6 +116,7 @@ def run(args, hyper_params):
         loss_fun = load_loss(hyper_params, train_loader)
 
         train(
+            hyper_params,
             model,
             optimizer,
             loss_fun,

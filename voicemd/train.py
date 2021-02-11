@@ -73,6 +73,7 @@ def load_stats(output_dir):
 
 
 def train(
+    hyper_params,
     model,
     optimizer,
     loss_fun,
@@ -89,6 +90,7 @@ def train(
 
     try:
         best_dev_metric = train_impl(
+            hyper_params,
             train_loader,
             valid_loaders,
             test_loaders,
@@ -122,6 +124,7 @@ def train(
 
 
 def train_impl(
+    hyper_params,
     train_loader,
     valid_loaders,
     test_loaders,
@@ -193,7 +196,6 @@ def train_impl(
                 loss = 0
 
                 categories = ['gender', 'age']
-                #  categories = ['gender'] # , 'age']
 
                 for cat in categories:
                     output = outputs[cat]
@@ -229,7 +231,7 @@ def train_impl(
         # Validation
         model.eval()
         validation_results = evaluate_loaders(
-            valid_loaders, model, loss_fun, device, pb
+            hyper_params, valid_loaders, model, loss_fun, device, pb
         )
 
         if use_scheduler:
@@ -289,7 +291,7 @@ def train_impl(
     logger.info("Evaluating on test set:")
     model.load_state_dict(torch.load(output_dir + '/' + best_model_split_name))  # load the best model
     model.eval()
-    test_results = evaluate_loaders(test_loaders, model, loss_fun, device, pb)
+    test_results = evaluate_loaders(hyper_params, test_loaders, model, loss_fun, device, pb)
     logger.info(
         "Confidence matrix on every test spectrum: \n {}".format(
             test_results["conf_mat_spectrums"]

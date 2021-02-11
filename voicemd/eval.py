@@ -38,7 +38,7 @@ def performance_metrics_per_patient(patient_predictions):
     return conf_mat
 
 
-def evaluate_loaders(loaders, model, loss_fun, device, pb):
+def evaluate_loaders(hyper_params, loaders, model, loss_fun, device, pb):
 
     model.eval()
     cumulative_loss = 0.0
@@ -46,7 +46,7 @@ def evaluate_loaders(loaders, model, loss_fun, device, pb):
     cumulative_conf_mat = np.zeros((2, 2))
     patient_predictions = []
     for loader in pb(loaders, total=len(loaders)):
-        loader_results = evaluate_loader(loader, model, device, loss_fun)
+        loader_results = evaluate_loader(hyper_params, loader, model, device, loss_fun)
         cumulative_acc += loader_results["avg_acc"]
         cumulative_loss += loader_results["avg_loss"]
         cumulative_conf_mat += loader_results["conf_mat"]
@@ -67,7 +67,7 @@ def evaluate_loaders(loaders, model, loss_fun, device, pb):
     return loaders_results
 
 
-def evaluate_loader(loader, model, device, loss_fun):
+def evaluate_loader(hyper_params, loader, model, device, loss_fun):
     steps = len(loader)
     cumulative_loss = 0.0
     cumulative_acc = 0.0
@@ -78,7 +78,7 @@ def evaluate_loader(loader, model, device, loss_fun):
         model_input, model_targets = data
         with torch.no_grad():
             outputs = model(model_input.to(device))
-            categories = ['gender', 'age']
+            categories = hyper_params['categories']  # ['gender', 'age']
             loss = 0
 
             for cat in categories:
@@ -89,7 +89,6 @@ def evaluate_loader(loader, model, device, loss_fun):
                 model_target = model_target.type(torch.long)
                 model_target = model_target.to(device)
                 loss += loss_fn(output, model_target)
-            #  loss = loss_fun(outputs, model_target)
             cumulative_loss += loss.item()
             # TODO: calculate stats on separate categories
 

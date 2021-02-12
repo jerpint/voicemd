@@ -10,19 +10,6 @@ from voicemd.data.process_sound import compute_specgram, load_waveform
 
 logger = logging.getLogger(__name__)
 
-#  AGE_LABEL2CAT = {
-#      'twenties': 0.0,
-#      'thirties': 1.0,
-#      'fourties': 2.0,
-#      'fifties': 3.0,
-#      'sixties': 4.0,
-#  }
-#
-#  GENDER_LABEL2CAT = {
-#      'F': 0,
-#      'M': 1,
-#  }
-
 class AudioDataset(torch.utils.data.Dataset):
     """Voice recordings dataset."""
 

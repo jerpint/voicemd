@@ -81,6 +81,7 @@ def get_loaders(args, hyper_params, train_metadata, valid_metadata, test_metadat
 
     logger.info("Preparing train soundfiles...")
     train_data = TrainDataset(
+        hyper_params,
         train_metadata,
         voice_clips_dir=args.data,
         spec_type=hyper_params['spec_type'],
@@ -99,6 +100,7 @@ def get_loaders(args, hyper_params, train_metadata, valid_metadata, test_metadat
     logger.info("Preparing validation soundfiles...")
     for val_idx in tqdm(range(len(valid_metadata))):
         valid_data = EvalDataset(
+            hyper_params,
             valid_metadata.iloc[[val_idx]],
             voice_clips_dir=args.data,
             spec_type=hyper_params['spec_type'],
@@ -117,6 +119,7 @@ def get_loaders(args, hyper_params, train_metadata, valid_metadata, test_metadat
     test_loaders = []
     for idx in range(len(test_metadata)):
         test_data = EvalDataset(
+            hyper_params,
             test_metadata.iloc[[idx]],
             voice_clips_dir=args.data,
             spec_type=hyper_params['spec_type'],

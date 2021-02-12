@@ -16,7 +16,7 @@ from orion.client import report_results
 from yaml import dump
 from yaml import load
 
-from voicemd.eval import evaluate_loaders, get_batch_performance_metrics
+from voicemd.eval import evaluate_loaders, get_batch_performance_metrics, predictions_from_probs
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +123,88 @@ def train(
     #      value=-float(best_dev_metric))])
 
 
+def train_valid_step(hyper_params, loader, model, optimizer, loss_fun, device, split):
+    n_ages = len(hyper_params['age_label2cat'])
+    n_genders = len(hyper_params['gender_label2cat'])
+    stats = {
+        'total_loss': 0,
+        'gender_loss': 0,
+        'gender_acc': 0,
+        'gender_conf_mat': np.zeros((n_genders, n_genders)),
+        'age_loss': 0,
+        'age_acc': 0,
+        'age_conf_mat': np.zeros((n_ages, n_ages)),
+        'sample_count': 0,
+        'step_count': 0,
+    }
+    # prob_stats only relevant in eval mode.
+    # When in eval mode, we collect all probabilities since each loader represents a patient
+    assert split in ['train', 'eval']
+    if split == 'train':
+        model.train()
+    elif split == 'eval':
+        model.eval()
+        stats['gender_probs'] = []
+        stats['age_probs'] = []
+
+    for data in loader:
+        model_input, model_targets = data
+        # forward + backward + optimize
+        if split == 'train':
+            optimizer.zero_grad()
+        outputs = model(model_input.to(device))
+        batch_loss = 0
+
+        categories = hyper_params['categories']
+
+        for cat in categories:
+            output = outputs[cat]
+            model_target = model_targets[cat]
+            loss_fn = loss_fun[cat]
+
+            model_target = model_target.type(torch.long).to(device)
+            cat_loss = loss_fn(output, model_target)
+            batch_loss += cat_loss
+            stats[f'{cat}_loss'] += cat_loss.item()
+            stats['total_loss'] += cat_loss.item()
+
+            if split == 'eval':
+                # collect probas computed on each frame
+                cat_prob_frame = torch.nn.functional.softmax(outputs[cat], dim=1)
+                stats[f'{cat}_probs'].extend(cat_prob_frame.detach().numpy())
+
+
+            cat_acc, cat_conf_mat = get_batch_performance_metrics(
+                outputs[cat],
+                model_targets[cat],
+                labels=list(hyper_params[f'{cat}_label2cat'].values())
+            )
+            stats[f'{cat}_conf_mat'] += cat_conf_mat
+            stats[f'{cat}_acc'] += cat_acc
+
+        stats['sample_count'] += model_targets['gender'].shape[0]
+        stats['step_count'] += 1
+
+        if split == 'train':
+            batch_loss.backward()
+            optimizer.step()
+
+    stats[f'total_avg_loss'] = stats['total_loss'] / stats['sample_count']
+    for cat in categories:
+        stats[f'{cat}_avg_acc'] = stats[f'{cat}_acc'] / stats['step_count']
+        stats[f'{cat}_avg_loss'] = stats[f'{cat}_loss'] / stats['sample_count']
+
+    if split == 'eval':
+        # compute predictions per patient, return results
+
+        stats['uid'] = loader.dataset.metadata.index[0]
+        for cat in categories:
+            stats[f'{cat}_prediction'], stats[f'{cat}_confidence'] = predictions_from_probs(stats[f'{cat}_probs'])
+            stats[f'{cat}_gt'] = int(model_targets[cat][0]) # in eval, they all come from same sample
+
+    return stats
+
+
 def train_impl(
     hyper_params,
     train_loader,
@@ -177,54 +259,16 @@ def train_impl(
     for epoch in range(start_epoch, max_epoch):
 
         start = time.time()
-        # train
-        n_passes = (
-            1  # sample each patient randomly n times in each epoch before validation
-        )
-        train_cumulative_loss = 0.0
-        train_cumulative_acc = 0.0
-        train_cumulative_conf_mat = np.zeros((2, 2))
-        examples = 0
-        model.train()
-        train_steps = len(train_loader) * n_passes
-        for i in pb(range(n_passes), total=n_passes):
-            for data in train_loader:
-                model_input, model_targets = data
-                # forward + backward + optimize
-                optimizer.zero_grad()
-                outputs = model(model_input.to(device))
-                loss = 0
 
-                categories = ['gender', 'age']
-
-                for cat in categories:
-                    output = outputs[cat]
-                    model_target = model_targets[cat]
-                    loss_fn = loss_fun[cat]
-
-                    model_target = model_target.type(torch.long)
-                    model_target = model_target.to(device)
-                    loss += loss_fn(output, model_target)
-                loss.backward()
-                optimizer.step()
-
-                # gender stats
-                acc, conf_mat = get_batch_performance_metrics(
-                    outputs['gender'],
-                    model_targets['gender']
-                )
-
-                train_cumulative_loss += loss.item()
-                train_cumulative_acc += acc
-                train_cumulative_conf_mat += conf_mat
-                examples += model_targets['gender'].shape[0]
+        train_stats = train_valid_step(hyper_params, train_loader, model, optimizer, loss_fun, device, split='train')
+        avg_train_loss = train_stats['total_loss'] / train_stats['sample_count']
+        avg_train_acc = train_stats['gender_acc'] / train_stats['step_count']
 
         train_end = time.time()
-        avg_train_loss = train_cumulative_loss / examples
-        avg_train_acc = train_cumulative_acc / train_steps
-        logger.info(
-            "Confidence matrix for train: \n {}".format(train_cumulative_conf_mat)
-        )
+        for cat in hyper_params['categories']:
+            logger.info(
+                "Confidence matrix for train: \n {}".format(train_stats[f'{cat}_conf_mat'])
+            )
         log_metric("train_loss", avg_train_loss, step=epoch)
         log_metric("train_acc", avg_train_acc, step=epoch)
 
@@ -237,26 +281,31 @@ def train_impl(
         if use_scheduler:
             scheduler.step()
 
-        logger.info(
-            "Confidence matrix on every validation spectrum: \n {}".format(
-                validation_results["conf_mat_spectrums"]
+        avg_eval_acc = 0
+        avg_eval_loss = 0
+        for cat in hyper_params['categories']:
+            logger.info("results for {}: ".format(cat))
+            logger.info(
+                "Confidence matrix on every validation spectrum: \n {}".format(
+                    validation_results[f"{cat}_conf_mat_spectrums"]
+                )
             )
-        )
-        logger.info(
-            "Confidence matrix per validation patient: \n {}".format(
-                validation_results["conf_mat_patients"]
+            logger.info(
+                "Confidence matrix per validation patient: \n {}".format(
+                    validation_results[f"{cat}_conf_mat_patients"]
+                )
             )
-        )
-        #  logger.info()
 
-        log_metric("dev_loss", validation_results["avg_loss"], step=epoch)
-        log_metric("dev_acc", validation_results["avg_acc"], step=epoch)
+            log_metric(f"{cat}_eval_loss", validation_results[f"{cat}_avg_loss"], step=epoch)
+            log_metric(f"{cat}_eval_acc", validation_results[f"{cat}_avg_acc"], step=epoch)
+
+            avg_eval_acc += validation_results[f"{cat}_avg_acc"]
+            avg_eval_loss += validation_results[f"{cat}_avg_loss"]
+        avg_eval_acc = avg_eval_acc / len(hyper_params['categories'])
+        avg_eval_loss = avg_eval_loss / len(hyper_params['categories'])
         torch.save(model.state_dict(), os.path.join(output_dir, LAST_MODEL_NAME))
-
-        avg_dev_acc = validation_results["avg_acc"]
-        avg_dev_loss = validation_results["avg_loss"]
-        if best_dev_metric is None or avg_dev_acc > best_dev_metric:
-            best_dev_metric = avg_dev_acc
+        if best_dev_metric is None or avg_eval_acc > best_dev_metric:
+            best_dev_metric = avg_eval_acc
             remaining_patience = patience
             best_model_split_name = BEST_MODEL_NAME + '_split_' + str(split_number)
             torch.save(model.state_dict(), os.path.join(output_dir, best_model_split_name))
@@ -270,8 +319,8 @@ def train_impl(
                 epoch,
                 avg_train_loss,
                 avg_train_acc,
-                avg_dev_loss,
-                avg_dev_acc,
+                avg_eval_loss,
+                avg_eval_acc,
                 remaining_patience,
             )
         )
@@ -292,16 +341,18 @@ def train_impl(
     model.load_state_dict(torch.load(output_dir + '/' + best_model_split_name))  # load the best model
     model.eval()
     test_results = evaluate_loaders(hyper_params, test_loaders, model, loss_fun, device, pb)
-    logger.info(
-        "Confidence matrix on every test spectrum: \n {}".format(
-            test_results["conf_mat_spectrums"]
+    for cat in hyper_params['categories']:
+        logger.info("results for {}: ".format(cat))
+        logger.info(
+            "Confidence matrix on every test spectrum: \n {}".format(
+                test_results[f"{cat}_conf_mat_spectrums"]
+            )
         )
-    )
-    logger.info(
-        "Confidence matrix per test patient: \n {}".format(
-            test_results["conf_mat_patients"]
+        logger.info(
+            "Confidence matrix per test patient: \n {}".format(
+                test_results[f"{cat}_conf_mat_patients"]
+            )
         )
-    )
     logger.info("saving results.")
     with open(output_dir + '/test_results_split_' + str(split_number) + '.pkl', 'wb') as out:
         pickle.dump(test_results, out)

@@ -10,23 +10,24 @@ from voicemd.data.process_sound import compute_specgram, load_waveform
 
 logger = logging.getLogger(__name__)
 
-AGE_LABEL2CAT = {
-    'twenties': 0.0,
-    'thirties': 1.0,
-    'fourties': 2.0,
-    'fifties': 3.0,
-    'sixties': 4.0,
-}
-
-GENDER_LABEL2CAT = {
-    'F': 0,
-    'M': 1,
-}
+#  AGE_LABEL2CAT = {
+#      'twenties': 0.0,
+#      'thirties': 1.0,
+#      'fourties': 2.0,
+#      'fifties': 3.0,
+#      'sixties': 4.0,
+#  }
+#
+#  GENDER_LABEL2CAT = {
+#      'F': 0,
+#      'M': 1,
+#  }
 
 class AudioDataset(torch.utils.data.Dataset):
     """Voice recordings dataset."""
 
     def __init__(self,
+                 hyper_params,
                  metadata,
                  voice_clips_dir,
                  spec_type,
@@ -46,6 +47,7 @@ class AudioDataset(torch.utils.data.Dataset):
             transform (callable, optional): Optional transform to be applied
                 on a sample.
         """
+        self.hyper_params = hyper_params
         self.metadata = metadata
         self.voice_clips_dir = voice_clips_dir
         self.spec_type = spec_type
@@ -67,8 +69,8 @@ class AudioDataset(torch.utils.data.Dataset):
         if self.preprocess:
             self._preprocess_dataset()
 
-        self.age_label2cat = AGE_LABEL2CAT
-        self.gender_label2cat = GENDER_LABEL2CAT
+        self.age_label2cat = self.hyper_params['age_label2cat']
+        self.gender_label2cat = self.hyper_params['gender_label2cat']
 
     def _specgram_from_uid(self, uid):
         '''Retrieve a specgram from the patient's UID'''

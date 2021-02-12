@@ -37,7 +37,9 @@ class LongFilterCNN(nn.Module):
             nn.Linear(128, 2),
         )
         self.age_classifier = nn.Sequential(
-            nn.Linear(1920, 256),
+            nn.Linear(1920, 512),
+            nn.ReLU(),
+            nn.Linear(512, 256),
             nn.ReLU(),
             nn.Linear(256, 128),
             nn.ReLU(),

@@ -15,11 +15,26 @@ seed: 42
 
 # categories to train on
 categories: 
-  - gender
+  # - gender
   - age
 
-# Metadata splits
+lambda_age: 1
+lambda_gender: 0.01
+
+age_label2cat:
+  twenties: 0.0
+  thirties: 1.0
+  fourties: 2.0
+  fifties: 3.0
+  sixties: 4.0
+
+gender_label2cat:
+  F: 0.0
+  M: 1.0
+
+
 metadata_fname: '/home/jerpint/Dropbox/voicemd_db/cv_balanced/cv_metadata_balanced_debug.csv'
 # metadata_fname: '../data/voice_clips/cleaned_metadata_filtered_dysphonia.csv'
+# Metadata splits
 split_type: shuffled_kfold
-n_splits: 2
+n_splits: 2 # TODO: Enable n_splits for 1

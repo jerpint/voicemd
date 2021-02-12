@@ -11,15 +11,28 @@ learning_rate: 0.01
 window_len: 256
 spec_type: librosa_melspec
 dev_step_size: 32
-# size: 10
 seed: 42
 
 categories: 
-  - gender
+  # - gender
   - age
 
+lambda_age: 1
+lambda_gender: 0.01
+
+age_label2cat:
+  twenties: 0.0
+  thirties: 1.0
+  fourties: 2.0
+  fifties: 3.0
+  sixties: 4.0
+
+gender_label2cat:
+  F: 0.0
+  M: 1.0
+
 # Metadata splits
-metadata_fname: '/home/jerpint/Dropbox/voicemd_db/cv_balanced/cv_metadata_balanced_clean.csv'
+metadata_fname: '/home/jerpint/Dropbox/voicemd_db/cv_balanced/cv_metadata_balanced_clean_shuffled.csv'
 # metadata_fname: '../data/voice_clips/cleaned_metadata_filtered_dysphonia.csv'
 split_type: shuffled_kfold
 n_splits: 10

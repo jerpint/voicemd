@@ -3,6 +3,7 @@
 import argparse
 import logging
 import os
+from shutil import copy
 import sys
 
 import mlflow
@@ -69,6 +70,12 @@ def main():
     else:
         hyper_params = {}
 
+    if not os.path.exists(args.output):
+        os.makedirs(args.output)
+
+    # save a copy of the config file to output folder
+    copy(args.config, args.output)
+
     # to be done as soon as possible otherwise mlflow will not log with the proper exp. name
     if "exp_name" in hyper_params:
         mlflow.set_experiment(hyper_params["exp_name"])
@@ -86,8 +93,6 @@ def main():
 
 def run(args, hyper_params):
 
-    if not os.path.exists(args.output):
-        os.makedirs(args.output)
 
     # __TODO__ change the hparam that are used from the training algorithm
     # (and NOT the model - these will be specified in the model itself)

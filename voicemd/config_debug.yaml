@@ -1,7 +1,7 @@
 # general
 batch_size: 32
 optimizer: sgd
-patience: 50
+patience: 20
 architecture: longfilter
 in_channels: 1
 max_epoch: 20
@@ -15,14 +15,15 @@ seed: 42
 use_scheduler: true
 scheduler_step_size: 50
 scheduler_gamma: 0.1
+dev_metric: age_avg_acc_patients
 
 # categories to train on
 categories: 
-  # - gender
+  - gender
   - age
 
 loss_lambda_age: 1
-loss_lambda_gender: 0.1
+loss_lambda_gender: 1
 
 age_label2cat:
   twenties: 0.0
@@ -37,7 +38,7 @@ gender_label2cat:
 
 
 metadata_fname: '/home/jerpint/Dropbox/voicemd_db/cv_balanced/cv_metadata_balanced_debug.csv'
-# metadata_fname: '../data/voice_clips/cleaned_metadata_filtered_dysphonia.csv'
 # Metadata splits
-split_type: shuffled_kfold
-n_splits: 2 # TODO: Enable n_splits for 1
+split_type: rand_shuffle
+# split_type: shuffled_kfold
+# n_splits: 2 # TODO: Enable n_splits for 1

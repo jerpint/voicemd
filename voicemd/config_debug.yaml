@@ -12,14 +12,17 @@ window_len: 256
 spec_type: librosa_melspec
 dev_step_size: 32
 seed: 42
+use_scheduler: true
+scheduler_step_size: 50
+scheduler_gamma: 0.1
 
 # categories to train on
 categories: 
   # - gender
   - age
 
-lambda_age: 1
-lambda_gender: 0.01
+loss_lambda_age: 1
+loss_lambda_gender: 0.1
 
 age_label2cat:
   twenties: 0.0

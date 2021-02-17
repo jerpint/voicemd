@@ -1,10 +1,10 @@
 # general
 batch_size: 32
 optimizer: sgd
-patience: 50
+patience: 200
 architecture: longfilter
 in_channels: 1
-max_epoch: 300
+max_epoch: 1000
 exp_name: densenet_small_winlen_256
 normalize_spectrums: true 
 learning_rate: 0.01
@@ -12,13 +12,16 @@ window_len: 256
 spec_type: librosa_melspec
 dev_step_size: 32
 seed: 42
+use_scheduler: true
+scheduler_step_size: 50
+scheduler_gamma: 0.1
 
 categories: 
   # - gender
   - age
 
-lambda_age: 1
-lambda_gender: 0.01
+loss_lambda_age: 1
+loss_lambda_gender: 1
 
 age_label2cat:
   twenties: 0.0
@@ -35,4 +38,4 @@ gender_label2cat:
 metadata_fname: '/home/jerpint/Dropbox/voicemd_db/cv_balanced/cv_metadata_balanced_clean_shuffled.csv'
 # metadata_fname: '../data/voice_clips/cleaned_metadata_filtered_dysphonia.csv'
 split_type: shuffled_kfold
-n_splits: 10
+n_splits: 2

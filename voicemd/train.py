@@ -163,7 +163,7 @@ def train_valid_step(hyper_params, loader, model, optimizer, loss_fun, device, s
             loss_fn = loss_fun[cat]
 
             model_target = model_target.type(torch.long).to(device)
-            cat_loss = loss_fn(output, model_target)
+            cat_loss = loss_fn(output, model_target) * hyper_params[f"loss_lambda_{cat}"]
             batch_loss += cat_loss
             stats[f'{cat}_loss'] += cat_loss.item()
             stats['total_loss'] += cat_loss.item()
@@ -219,7 +219,6 @@ def train_impl(
     split_number,
     use_progress_bar,
     start_from_scratch=False,
-    use_scheduler=True,
 ):
 
     if use_progress_bar:
@@ -253,8 +252,12 @@ def train_impl(
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
-    if use_scheduler:
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.5)
+    if hyper_params['use_scheduler']:
+        scheduler = torch.optim.lr_scheduler.StepLR(
+            optimizer,
+            step_size=hyper_params['scheduler_step_size'],
+            gamma=hyper_params['scheduler_gamma']
+        )
 
     for epoch in range(start_epoch, max_epoch):
 
@@ -278,7 +281,7 @@ def train_impl(
             hyper_params, valid_loaders, model, loss_fun, device, pb
         )
 
-        if use_scheduler:
+        if hyper_params['use_scheduler']:
             scheduler.step()
 
         avg_eval_acc = 0
@@ -299,31 +302,52 @@ def train_impl(
             log_metric(f"{cat}_eval_loss", validation_results[f"{cat}_avg_loss"], step=epoch)
             log_metric(f"{cat}_eval_acc", validation_results[f"{cat}_avg_acc"], step=epoch)
 
+            logger.info(
+                "Validation loss: \n {}".format(
+                    validation_results[f"{cat}_avg_loss"]
+                )
+            )
+            logger.info(
+                "Validation accuracy: \n {}".format(
+                    validation_results[f"{cat}_avg_acc"]
+                )
+            )
+            logger.info(
+                "Train accuracy (per spectrum): \n {}".format(
+                    train_stats[f"{cat}_avg_acc"]
+                )
+            )
+
             avg_eval_acc += validation_results[f"{cat}_avg_acc"]
             avg_eval_loss += validation_results[f"{cat}_avg_loss"]
         avg_eval_acc = avg_eval_acc / len(hyper_params['categories'])
         avg_eval_loss = avg_eval_loss / len(hyper_params['categories'])
         torch.save(model.state_dict(), os.path.join(output_dir, LAST_MODEL_NAME))
-        if best_dev_metric is None or avg_eval_acc > best_dev_metric:
-            best_dev_metric = avg_eval_acc
+        if best_dev_metric is None or validation_results[f"{cat}_avg_acc"] < best_dev_metric:
+            best_dev_metric = validation_results[f"{cat}_avg_acc"]
             remaining_patience = patience
             best_model_split_name = BEST_MODEL_NAME + '_split_' + str(split_number)
             torch.save(model.state_dict(), os.path.join(output_dir, best_model_split_name))
-            #  logger.info()
             logger.info("New best model, saving results.\n")
         else:
             remaining_patience -= 1
 
         logger.info(
-            "done #epoch {:3} => loss {:5.3f}, acc {:5.3f}- dev loss {:3.4f} dev-acc {:5.3f}, (will try for {} more epoch) - ".format(
+            "done #epoch {:3} => . (will try for {} more epoch)\n========\n\n".format(
                 epoch,
-                avg_train_loss,
-                avg_train_acc,
-                avg_eval_loss,
-                avg_eval_acc,
                 remaining_patience,
             )
         )
+        #  logger.info(
+        #      "done #epoch {:3} => loss {:5.3f}, acc {:5.3f}- dev loss {:3.4f} dev-acc {:5.3f}, (will try for {} more epoch) - ".format(
+        #          epoch,
+        #          avg_train_loss,
+        #          avg_train_acc,
+        #          avg_eval_loss,
+        #          avg_eval_acc,
+        #          remaining_patience,
+        #      )
+        #  )
 
         write_stats(output_dir, best_dev_metric, epoch + 1, remaining_patience)
         log_metric("best_dev_metric", best_dev_metric)

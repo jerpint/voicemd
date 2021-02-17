@@ -2,6 +2,12 @@
 mlruns
 examples/*/output/
 
+# vim
+*.swp
+
+# notebooks
+*.ipynb
+
 # Ignore top-level data folder
 data/
 

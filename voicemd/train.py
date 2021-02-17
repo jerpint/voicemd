@@ -264,13 +264,10 @@ def train_impl(
 
     for epoch in range(start_epoch, max_epoch):
 
-        start = time.time()
-
         train_stats = train_valid_step(hyper_params, train_loader, model, optimizer, loss_fun, device, split='train')
         avg_train_loss = train_stats['total_loss'] / train_stats['sample_count']
         avg_train_acc = train_stats['gender_acc'] / train_stats['step_count']
 
-        train_end = time.time()
         for cat in hyper_params['categories']:
             logger.info(
                 "Confidence matrix for train: \n {}".format(train_stats[f'{cat}_conf_mat'])

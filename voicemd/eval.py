@@ -31,6 +31,7 @@ def get_confusion_matrix(outputs, model_target, labels):
     conf_mat = confusion_matrix(targs, preds, labels=labels)
     return conf_mat
 
+
 def acc_from_conf_mat(conf_mat):
     acc = np.sum(np.diag(conf_mat)) / np.sum(conf_mat)
     return acc
@@ -54,22 +55,18 @@ def evaluate_loaders(hyper_params, loaders, model, loss_fun, device, pb):
     for cat in hyper_params['categories']:
         n_cats = len(hyper_params[f'{cat}_label2cat'])
         cumulative_loss = 0.0
-        cumulative_acc = 0.0
         per_spectrum_conf_mat = np.zeros((n_cats, n_cats))
         patient_predictions = []
         for loader in pb(loaders, total=len(loaders)):
             loader_results = evaluate_loader(hyper_params, loader, model, device, loss_fun)
-            cumulative_acc += loader_results[f"{cat}_avg_acc"]
             cumulative_loss += loader_results[f"{cat}_avg_loss"]
             per_spectrum_conf_mat += loader_results[f"{cat}_conf_mat"]
             patient_predictions.append(loader_results)
 
         avg_loss = cumulative_loss / len(loaders)
-        avg_acc = cumulative_acc / len(loaders)
         labels = list(hyper_params[f'{cat}_label2cat'].values()) # possible label values for cat
         per_patient_conf_mat = performance_metrics_per_patient(patient_predictions, cat, labels)
         combined_results[f"{cat}_avg_loss"] = avg_loss
-        combined_results[f"{cat}_avg_acc"] = avg_acc
         combined_results[f"{cat}_conf_mat_patients"] = per_patient_conf_mat
         combined_results[f"{cat}_conf_mat_spectrums"] = per_spectrum_conf_mat
         combined_results[f"{cat}_patient_predictions"] = patient_predictions

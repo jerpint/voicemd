@@ -142,8 +142,6 @@ def train_valid_step(hyper_params, loader, model, optimizer, loss_fun, device, s
         'sample_count': 0,
         'step_count': 0,
     }
-    # prob_stats only relevant in eval mode.
-    # When in eval mode, we collect all probabilities since each loader represents a patient
     assert split in ['train', 'eval']
     if split == 'train':
         model.train()
@@ -175,6 +173,8 @@ def train_valid_step(hyper_params, loader, model, optimizer, loss_fun, device, s
 
             if split == 'eval':
                 # collect probas computed on each frame
+                # When in eval mode, we collect all probabilities
+                # since each dataloader represents a patient
                 cat_prob_frame = torch.nn.functional.softmax(outputs[cat], dim=1)
                 stats[f'{cat}_probs'].extend(cat_prob_frame.detach().numpy())
 
@@ -266,14 +266,15 @@ def train_impl(
 
         train_stats = train_valid_step(hyper_params, train_loader, model, optimizer, loss_fun, device, split='train')
         avg_train_loss = train_stats['total_loss'] / train_stats['sample_count']
-        avg_train_acc = train_stats['gender_acc'] / train_stats['step_count']
 
         for cat in hyper_params['categories']:
             logger.info(
                 "Confidence matrix for train: \n {}".format(train_stats[f'{cat}_conf_mat'])
             )
+            logger.info(
+                "{} train accuracy: {}\n".format(cat, train_stats[f'{cat}_avg_acc'])
+            )
         log_metric("train_loss", avg_train_loss, step=epoch)
-        log_metric("train_acc", avg_train_acc, step=epoch)
 
         # Validation
         model.eval()
@@ -284,9 +285,13 @@ def train_impl(
         if hyper_params['use_scheduler']:
             scheduler.step()
 
-        avg_eval_acc = 0
-        avg_eval_loss = 0
+        total_eval_loss = 0
         for cat in hyper_params['categories']:
+            # Compute accuracy over entire validation
+            validation_results[f"{cat}_avg_acc_spectrums"] = acc_from_conf_mat(validation_results[f"{cat}_conf_mat_spectrums"])
+            validation_results[f"{cat}_avg_acc_patients"] = acc_from_conf_mat(validation_results[f"{cat}_conf_mat_patients"])
+
+            # Log result
             logger.info("results for {}: ".format(cat))
             logger.info(
                 "Confidence matrix on every validation spectrum: \n {}".format(
@@ -294,50 +299,63 @@ def train_impl(
                 )
             )
             logger.info(
+                "Validation accuracy (spectrum) {}".format(
+                    validation_results[f"{cat}_avg_acc_spectrums"]
+                )
+            )
+            logger.info(
                 "Confidence matrix per validation patient: \n {}".format(
                     validation_results[f"{cat}_conf_mat_patients"]
                 )
             )
+            logger.info(
+                "Validation accuracy (patients) {}".format(
+                    validation_results[f"{cat}_avg_acc_patients"]
+                )
+            )
 
             log_metric(f"{cat}_eval_loss", validation_results[f"{cat}_avg_loss"], step=epoch)
-            log_metric(f"{cat}_eval_acc", validation_results[f"{cat}_avg_acc"], step=epoch)
+            log_metric(f"{cat}_eval_acc_patients", validation_results[f"{cat}_avg_acc_patients"], step=epoch)
+            log_metric(f"{cat}_eval_acc_spectrums", validation_results[f"{cat}_avg_acc_spectrums"], step=epoch)
 
             logger.info(
                 "Validation loss: \n {}".format(
                     validation_results[f"{cat}_avg_loss"]
                 )
             )
-            logger.info(
-                "Validation accuracy: \n {}".format(
-                    validation_results[f"{cat}_avg_acc"]
-                )
-            )
-            logger.info(
-                "Train accuracy (per spectrum): \n {}".format(
-                    train_stats[f"{cat}_avg_acc"]
-                )
-            )
 
-            avg_eval_acc += validation_results[f"{cat}_avg_acc"]
-            avg_eval_loss += validation_results[f"{cat}_avg_loss"]
-        avg_eval_acc = avg_eval_acc / len(hyper_params['categories'])
-        avg_eval_loss = avg_eval_loss / len(hyper_params['categories'])
+            total_eval_loss += validation_results[f"{cat}_avg_loss"]
         torch.save(model.state_dict(), os.path.join(output_dir, LAST_MODEL_NAME))
-        if best_dev_metric is None or validation_results[f"{cat}_avg_acc"] < best_dev_metric:
-            best_dev_metric = validation_results[f"{cat}_avg_acc"]
+        dev_metric = hyper_params['dev_metric']
+        if best_dev_metric is None or validation_results[dev_metric] > best_dev_metric:
+            logger.info("{}".format("*"*50))
+            logger.info("New best model, saving results.")
+            logger.info("Metric: {}".format(dev_metric))
+            logger.info("Previous Value: {}".format(best_dev_metric))
+            best_dev_metric = validation_results[dev_metric]
+            logger.info("New Value: {}".format(best_dev_metric))
+            logger.info("{}".format("*"*50))
             remaining_patience = patience
             best_model_split_name = BEST_MODEL_NAME + '_split_' + str(split_number)
             torch.save(model.state_dict(), os.path.join(output_dir, best_model_split_name))
-            logger.info("New best model, saving results.\n")
         else:
             remaining_patience -= 1
 
+        logger.info("="*79)
         logger.info(
-            "done #epoch {:3} => . (will try for {} more epoch)\n========\n\n".format(
+            "done #epoch {:3} => . (will try for {} more epoch)\n".format(
                 epoch,
                 remaining_patience,
             )
         )
+        logger.info(
+            "Metric Used: {}, Current score: {} Best score: {}".format(
+                dev_metric,
+                validation_results[dev_metric],
+                best_dev_metric,
+            )
+        )
+        logger.info("="*79 + '\n\n')
 
         write_stats(output_dir, best_dev_metric, epoch + 1, remaining_patience)
         log_metric("best_dev_metric", best_dev_metric)

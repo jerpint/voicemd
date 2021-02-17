@@ -113,6 +113,9 @@ def run(args, hyper_params):
         logger.info("setting seed")
         set_seeds(hyper_params['seed'])
 
+    if hyper_params['split_type'] != 'shuffled_kfold':
+        hyper_params['n_splits'] = 1
+
     for split_number, split in enumerate(range(hyper_params['n_splits'])):
         train_metadata, valid_metadata, test_metadata = get_metadata_splits(args, hyper_params, split)
         train_loader, valid_loaders, test_loaders = get_loaders(args, hyper_params, train_metadata, valid_metadata, test_metadata)

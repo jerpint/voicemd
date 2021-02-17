@@ -44,7 +44,6 @@ def get_metadata_splits(args, hyper_params, split):
 
         train_percentage = 0.8
         val_percentage = 0.1
-        # test_percentage = 0.1
 
         train_metadata = shuffled_metadata[0:round(len(shuffled_metadata) * train_percentage)]
         valid_metadata = shuffled_metadata[round(len(shuffled_metadata) * train_percentage):round(len(shuffled_metadata)*(train_percentage + val_percentage))]

@@ -16,7 +16,12 @@ from orion.client import report_results
 from yaml import dump
 from yaml import load
 
-from voicemd.eval import evaluate_loaders, get_batch_performance_metrics, predictions_from_probs
+from voicemd.eval import (
+    evaluate_loaders,
+    get_confusion_matrix,
+    acc_from_conf_mat,
+    predictions_from_probs
+)
 
 logger = logging.getLogger(__name__)
 
@@ -173,14 +178,12 @@ def train_valid_step(hyper_params, loader, model, optimizer, loss_fun, device, s
                 cat_prob_frame = torch.nn.functional.softmax(outputs[cat], dim=1)
                 stats[f'{cat}_probs'].extend(cat_prob_frame.detach().numpy())
 
-
-            cat_acc, cat_conf_mat = get_batch_performance_metrics(
+            cat_conf_mat = get_confusion_matrix(
                 outputs[cat],
                 model_targets[cat],
                 labels=list(hyper_params[f'{cat}_label2cat'].values())
             )
             stats[f'{cat}_conf_mat'] += cat_conf_mat
-            stats[f'{cat}_acc'] += cat_acc
 
         stats['sample_count'] += model_targets['gender'].shape[0]
         stats['step_count'] += 1
@@ -191,7 +194,7 @@ def train_valid_step(hyper_params, loader, model, optimizer, loss_fun, device, s
 
     stats[f'total_avg_loss'] = stats['total_loss'] / stats['sample_count']
     for cat in categories:
-        stats[f'{cat}_avg_acc'] = stats[f'{cat}_acc'] / stats['step_count']
+        stats[f'{cat}_avg_acc'] = acc_from_conf_mat(stats[f'{cat}_conf_mat'])
         stats[f'{cat}_avg_loss'] = stats[f'{cat}_loss'] / stats['sample_count']
 
     if split == 'eval':
@@ -338,16 +341,6 @@ def train_impl(
                 remaining_patience,
             )
         )
-        #  logger.info(
-        #      "done #epoch {:3} => loss {:5.3f}, acc {:5.3f}- dev loss {:3.4f} dev-acc {:5.3f}, (will try for {} more epoch) - ".format(
-        #          epoch,
-        #          avg_train_loss,
-        #          avg_train_acc,
-        #          avg_eval_loss,
-        #          avg_eval_acc,
-        #          remaining_patience,
-        #      )
-        #  )
 
         write_stats(output_dir, best_dev_metric, epoch + 1, remaining_patience)
         log_metric("best_dev_metric", best_dev_metric)

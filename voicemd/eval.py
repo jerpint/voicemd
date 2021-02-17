@@ -24,14 +24,16 @@ def predictions_from_probs(probs):
     return class_prediction, class_confidence
 
 
-def get_batch_performance_metrics(outputs, model_target, labels):
-    # gender stats
+def get_confusion_matrix(outputs, model_target, labels):
     probs = torch.softmax(outputs, 1).detach().numpy()
     preds = np.argmax(probs, 1)
     targs = model_target.detach().numpy()
-    acc = np.sum(np.equal(preds, targs)) / len(preds)
     conf_mat = confusion_matrix(targs, preds, labels=labels)
-    return acc, conf_mat
+    return conf_mat
+
+def acc_from_conf_mat(conf_mat):
+    acc = np.sum(np.diag(conf_mat)) / np.sum(conf_mat)
+    return acc
 
 
 def performance_metrics_per_patient(patient_predictions, cat, labels):

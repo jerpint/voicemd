@@ -1,10 +1,10 @@
 # general
-batch_size: 32
+batch_size: 128
 optimizer: sgd
-patience: 20
+patience: 100
 architecture: longfilter
 in_channels: 1
-max_epoch: 20
+max_epoch: 100
 exp_name: densenet_small_winlen_256
 normalize_spectrums: true 
 learning_rate: 0.01
@@ -12,7 +12,7 @@ window_len: 256
 spec_type: librosa_melspec
 dev_step_size: 32
 seed: 42
-use_scheduler: true
+use_scheduler: false
 scheduler_step_size: 50
 scheduler_gamma: 0.1
 dev_metric: age_avg_acc_patients

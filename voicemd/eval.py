@@ -16,6 +16,12 @@ from yaml import dump
 from yaml import load
 
 
+def get_num_categories(data_map):
+    return len(set(data_map.values()))
+
+def get_unique_categories(data_map):
+    return sorted(list(set(data_map.values())))
+
 def predictions_from_probs(probs):
     probs = np.array(probs)
     collapsed_probs = np.sum(probs, 0) / len(probs)
@@ -53,7 +59,7 @@ def evaluate_loaders(hyper_params, loaders, model, loss_fun, device, pb):
 
     combined_results = {}
     for cat in hyper_params['categories']:
-        n_cats = len(hyper_params[f'{cat}_label2cat'])
+        n_cats = get_num_categories(hyper_params[f'{cat}_label2cat'])
         cumulative_loss = 0.0
         per_spectrum_conf_mat = np.zeros((n_cats, n_cats))
         patient_predictions = []
@@ -64,7 +70,7 @@ def evaluate_loaders(hyper_params, loaders, model, loss_fun, device, pb):
             patient_predictions.append(loader_results)
 
         avg_loss = cumulative_loss / len(loaders)
-        labels = list(hyper_params[f'{cat}_label2cat'].values()) # possible label values for cat
+        labels = get_unique_categories(hyper_params[f'{cat}_label2cat'])  # possible label values for cat
         per_patient_conf_mat = performance_metrics_per_patient(patient_predictions, cat, labels)
         combined_results[f"{cat}_avg_loss"] = avg_loss
         combined_results[f"{cat}_conf_mat_patients"] = per_patient_conf_mat

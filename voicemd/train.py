@@ -20,7 +20,9 @@ from voicemd.eval import (
     evaluate_loaders,
     get_confusion_matrix,
     acc_from_conf_mat,
-    predictions_from_probs
+    predictions_from_probs,
+    get_num_categories,
+    get_unique_categories,
 )
 
 logger = logging.getLogger(__name__)
@@ -28,6 +30,8 @@ logger = logging.getLogger(__name__)
 BEST_MODEL_NAME = "best_model"
 LAST_MODEL_NAME = "last_model"
 STAT_FILE_NAME = "stats.yaml"
+
+
 
 
 def reload_model(output_dir, model_name, model, optimizer, start_from_scratch=False):
@@ -129,8 +133,8 @@ def train(
 
 
 def train_valid_step(hyper_params, loader, model, optimizer, loss_fun, device, split):
-    n_ages = len(hyper_params['age_label2cat'])
-    n_genders = len(hyper_params['gender_label2cat'])
+    n_ages = get_num_categories(hyper_params['age_label2cat'])
+    n_genders = get_num_categories(hyper_params['gender_label2cat'])
     stats = {
         'total_loss': 0,
         'gender_loss': 0,
@@ -181,7 +185,7 @@ def train_valid_step(hyper_params, loader, model, optimizer, loss_fun, device, s
             cat_conf_mat = get_confusion_matrix(
                 outputs[cat],
                 model_targets[cat],
-                labels=list(hyper_params[f'{cat}_label2cat'].values())
+                labels=get_unique_categories(hyper_params[f'{cat}_label2cat'])
             )
             stats[f'{cat}_conf_mat'] += cat_conf_mat
 

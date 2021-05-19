@@ -1,4 +1,4 @@
- general
+# general
 batch_size: 128
 optimizer: sgd
 patience: 1000

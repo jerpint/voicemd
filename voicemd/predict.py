@@ -3,7 +3,7 @@ import yaml
 import numpy as np
 from tqdm import tqdm
 from yaml import load
-from voicemd.data.prepare_dataloaders import make_predict_dataloader
+from voicemd.data.predict_dataloader import make_predict_dataloader
 from voicemd.models.model_loader import load_model
 
 

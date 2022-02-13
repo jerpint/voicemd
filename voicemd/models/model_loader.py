@@ -3,7 +3,6 @@ import torch
 from torch import optim
 
 from voicemd.models.my_model import MyModel
-from voicemd.models.densenet import densenet121, densenet_small
 from voicemd.models.simple_cnn import SimpleCNN
 from voicemd.models.long_filter_cnn import LongFilterCNN
 
@@ -17,9 +16,11 @@ def load_model(hyper_params):
         model_class = MyModel
 
     elif architecture == 'densenet121':
+        from voicemd.models.densenet import densenet121
         model_class = densenet121
 
     elif architecture == 'densenet_small':
+        from voicemd.models.densenet import densenet_small
         model_class = densenet_small
 
     elif architecture == 'simplecnn':

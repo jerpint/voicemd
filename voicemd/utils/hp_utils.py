@@ -1,7 +1,5 @@
 import logging
 
-from mlflow import log_param
-
 logger = logging.getLogger(__name__)
 
 
@@ -27,5 +25,4 @@ def check_hp(names, hps, allow_extra=True):
 
 def log_hp(names, hps):
     for name in sorted(names):
-        log_param(name, hps[name])
         logger.info('\thp "{}" => "{}"'.format(name, hps[name]))

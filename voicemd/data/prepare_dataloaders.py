@@ -5,7 +5,7 @@ from sklearn.model_selection import KFold
 from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 
-from voicemd.data.dataloaders import TrainDataset, EvalDataset, PredictDataset
+from voicemd.data.dataloaders import TrainDataset, EvalDataset
 
 logger = logging.getLogger(__name__)
 
@@ -134,22 +134,3 @@ def get_loaders(args, hyper_params, train_metadata, valid_metadata, test_metadat
         test_loaders.append(test_loader)
 
     return train_loader, valid_loaders, test_loaders
-
-
-def make_predict_dataloader(sound_filename, hyper_params):
-    '''Useful for prediction on single file'''
-
-    predict_dataset = PredictDataset(
-            sound_filename=sound_filename,
-            spec_type=hyper_params['spec_type'],
-            window_len=hyper_params['window_len'],
-            in_channels=hyper_params['in_channels'],
-            preprocess=True,
-            normalize=hyper_params['normalize_spectrums'],
-        )
-
-    predict_dataloader = DataLoader(
-         predict_dataset, batch_size=hyper_params["batch_size"], shuffle=False
-        )
-
-    return predict_dataloader

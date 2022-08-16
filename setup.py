@@ -7,8 +7,15 @@ setup(
     packages=find_packages(include=['voicemd', 'voicemd.*']),
     python_requires='>=3.6.9',
     install_requires=[
-        'flake8', 'tqdm', 'mlflow', 'orion', 'pyyaml', 'pytest',
-        'torch', 'torchaudio', 'librosa>=0.8'],
+        'flake8',
+        'tqdm',
+        'mlflow',
+        'orion',
+        'pyyaml',
+        'pytest',
+        'torch',
+        'torchaudio==0.11',
+        'librosa>=0.8'],
     entry_points={
         'console_scripts': [
             'main=voicemd.main:main'

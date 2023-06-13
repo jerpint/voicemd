@@ -7,7 +7,7 @@ import numpy as np
 def compute_specgram(waveform, sr, spec_type, normalize):
 
     if spec_type == 'librosa_melspec':
-        specgram = librosa.feature.melspectrogram(waveform, sr=sr, hop_length=512, win_length=512, fmax=8000, n_mels=80)
+        specgram = librosa.feature.melspectrogram(y=waveform, sr=sr, hop_length=512, win_length=512, fmax=8000, n_mels=80)
         specgram = librosa.power_to_db(specgram, ref=np.max)
         specgram = torch.tensor(specgram).unsqueeze(dim=0)
 

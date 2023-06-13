@@ -9,7 +9,7 @@ setup(
     install_requires=[
         'librosa==0.10.0.post2',
         'mlflow==2.4.1',
-        'numpy==1.24.3'
+        'numpy==1.24.3',
         'torch==2.0.1',
         'torchaudio==2.0.2',
         'torchvision==0.15.2',

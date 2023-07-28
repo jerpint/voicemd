@@ -8,7 +8,7 @@ setup(
     python_requires='>=3.9',
     install_requires=[
         'librosa==0.10.0.post2',
-        'mlflow==2.4.1',
+        'mlflow==2.5.0',
         'numpy==1.24.3',
         'torch==2.0.1',
         'torchaudio==2.0.2',
